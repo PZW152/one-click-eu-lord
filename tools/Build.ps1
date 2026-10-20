@@ -57,6 +57,13 @@ Write-Host "icon       $iconPath"
 
 $arguments = @(
     '/nologo'
+    # Without /noconfig, csc also reads csc.rsp from its own directory, which
+    # references System.dll and friends from there. On a machine with the .NET
+    # developer pack installed -- the GitHub runner, for one -- our references
+    # resolve to the Reference Assemblies copies instead, and csc rejects the two
+    # as duplicate identities (CS1703). Suppressing the response file makes the
+    # reference set exactly the list below, on every machine.
+    '/noconfig'
     '/target:winexe'
     '/platform:anycpu'
     '/langversion:5'                       # the in-box compiler is C# 5; keep CI honest about it
