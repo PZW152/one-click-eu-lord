@@ -19,7 +19,7 @@ jobs:
         with:
           persist-credentials: false
 
-      # The launchers call powershell.exe, so Windows PowerShell 5.1 is what matters most.
+      # EU-Overlord.cmd runs powershell.exe, so Windows PowerShell 5.1 is what matters most.
       - name: Tests (Windows PowerShell 5.1)
         shell: powershell
         run: .\tests\Test-Engine.ps1

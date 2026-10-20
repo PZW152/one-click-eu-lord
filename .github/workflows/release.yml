@@ -1,8 +1,10 @@
 name: Release
 
 # Pushing a tag like v1.2.3 tests that exact commit on Windows, builds the
-# Windows zip and publishes (or refreshes) the matching GitHub Release.
-# Can also be run by hand against an existing tag (v1.1.0 or later).
+# single-file EU-Overlord.cmd and publishes (or refreshes) the GitHub Release.
+# The asset name never changes, so this link always serves the newest version:
+#   https://github.com/PZW152/one-click-eu-overlord/releases/latest/download/EU-Overlord.cmd
+# Can also be run by hand against an existing tag (v1.2.0 or later).
 on:
   push:
     tags:
@@ -10,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Existing tag (v1.1.0 or later) to rebuild the release asset for'
+        description: 'Existing tag (v1.2.0 or later) to rebuild the release asset for'
         required: true
         type: string
 
@@ -26,21 +28,25 @@ env:
   RAW_TAG: ${{ github.event.inputs.tag || github.ref_name }}
 
 jobs:
-  test:
+  release:
     runs-on: windows-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
+    permissions:
+      contents: write   # create the release and upload its asset
     steps:
       - name: Validate tag
         shell: pwsh
         run: |
           if ($env:RAW_TAG -notmatch '^v\d+\.\d+\.\d+$') { throw "Refusing tag '$env:RAW_TAG': must look like v1.2.3" }
+          "TAG=$env:RAW_TAG" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       # actions/checkout v4.3.0, pinned to a full commit SHA.
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
         with:
-          ref: ${{ env.RAW_TAG }}
+          ref: ${{ env.TAG }}
           persist-credentials: false
 
+      # The tests also build EU-Overlord.cmd in a sandbox and run it end to end.
       - name: Tests (Windows PowerShell 5.1)
         shell: powershell
         run: .\tests\Test-Engine.ps1
@@ -49,62 +55,19 @@ jobs:
         shell: pwsh
         run: .\tests\Test-Engine.ps1
 
-  release:
-    needs: test
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: write   # create the release and upload its asset
-    env:
-      GH_TOKEN: ${{ github.token }}
-      GH_REPO: ${{ github.repository }}
-    steps:
-      - name: Validate tag
+      - name: Engine version matches the tag
+        shell: pwsh
         run: |
-          if ! [[ "$RAW_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Refusing tag '$RAW_TAG': must look like v1.2.3" >&2
-            exit 1
-          fi
-          echo "TAG=$RAW_TAG" >> "$GITHUB_ENV"
+          $m = [regex]::Match((Get-Content src\EUOverlord.ps1 -Raw), '\$Script:Version\s*=\s*''(\d+\.\d+\.\d+)''')
+          if (-not $m.Success) { throw 'No $Script:Version found in src\EUOverlord.ps1' }
+          if ("v$($m.Groups[1].Value)" -ne $env:TAG) { throw "Engine says v$($m.Groups[1].Value) but the tag is $env:TAG" }
 
-      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
-        with:
-          ref: ${{ env.TAG }}
-          persist-credentials: false
-
-      - name: Build Windows zip
-        run: |
-          set -euo pipefail
-          name="one-click-eu-overlord-${TAG}"
-          stage="dist/one-click-eu-overlord"
-          mkdir -p "$stage"
-          # Only what users need: no VCS data, CI config or tests.
-          cp -r src launchers docs tools "$stage/"
-          cp README.md README.zh-CN.md README.en.md CHANGELOG.md LICENSE SECURITY.md "$stage/"
-
-          scripts() { find "$stage" -type f \( -name '*.cmd' -o -name '*.bat' -o -name '*.ps1' \) -print0; }
-
-          # Windows runs these directly, so force CRLF regardless of checkout settings.
-          scripts | while IFS= read -r -d '' f; do sed -i 's/\r$//; s/$/\r/' "$f"; done
-
-          bad=0
-          while IFS= read -r -d '' f; do
-            if [ "$(grep -c $'\r$' "$f")" -ne "$(wc -l < "$f")" ]; then
-              echo "Not pure CRLF: $f" >&2; bad=1
-            fi
-            # Every PowerShell script needs a UTF-8 BOM: Windows PowerShell 5.1 decodes
-            # BOM-less files with the ANSI code page (e.g. cp950) and garbles CJK text.
-            if [[ "$f" == *.ps1 ]] && [ "$(head -c 3 "$f" | od -An -tx1 | tr -d ' \n')" != "efbbbf" ]; then
-              echo "Missing UTF-8 BOM: $f" >&2; bad=1
-            fi
-          done < <(scripts)
-          [ "$bad" -eq 0 ]
-
-          (cd dist && zip -qr "../${name}.zip" one-click-eu-overlord)
-          echo "ASSET=${name}.zip" >> "$GITHUB_ENV"
-          unzip -l "${name}.zip"
+      - name: Build EU-Overlord.cmd
+        shell: pwsh
+        run: .\tools\Build-SingleFile.ps1 -OutFile dist\EU-Overlord.cmd
 
       - name: Release notes from CHANGELOG.md
+        shell: bash
         run: |
           set -euo pipefail
           # The section under "## vX.Y.Z", up to the next "## " heading.
@@ -113,20 +76,24 @@ jobs:
             on && /^## / { exit }
             on { print }
           ' CHANGELOG.md > notes.md
-          if [ ! -s notes.md ] || ! grep -q '[^[:space:]]' notes.md; then
+          if ! grep -q '[^[:space:]]' notes.md; then
             echo "CHANGELOG.md has no section for $TAG" >&2
             exit 1
           fi
           cat notes.md
 
       - name: Publish release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "Release $TAG exists; replacing its zip asset."
-            gh release upload "$TAG" "$ASSET" --clobber
+            echo "Release $TAG exists; replacing its asset."
+            gh release upload "$TAG" dist/EU-Overlord.cmd --clobber
           else
-            gh release create "$TAG" "$ASSET" \
+            gh release create "$TAG" dist/EU-Overlord.cmd \
               --verify-tag \
               --title "$TAG — 一鍵轉生歐盟爺 · 一键转生欧盟爷 · One-Click EU Overlord" \
               --notes-file notes.md
