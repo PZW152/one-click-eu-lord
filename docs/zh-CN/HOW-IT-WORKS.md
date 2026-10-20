@@ -2,6 +2,21 @@
 
 # 工作原理
 
+## 0. 单文件与菜单
+
+用户下载的 `EU-Overlord.cmd` 由 [`tools\Build-SingleFile.ps1`](../../tools/Build-SingleFile.ps1) 生成：前面是一小段纯 ASCII 的批处理，后面原样接上 `src\EUOverlord.ps1`。
+
+双击时：
+
+1. 批处理把分隔线之后的引擎写成 `%TEMP%\EUOverlord-<随机数>.ps1`（带 BOM 的 UTF-8），用 Windows PowerShell 运行，结束后删除。
+2. 不带参数时，引擎打开**菜单**：显示当前状态，直接按 Enter＝选项 1。
+3. 没有管理员权限时，引擎通过 UAC 以管理员身份打开新窗口；如果你拒绝，会说明“没有做任何更改”。
+4. 应用或恢复后，会问是否立即重启（默认不重启）。
+5. 没有交互式控制台时（例如被脚本调用、输入被重定向），菜单拒绝运行并返回 2，避免“Enter＝1”被误触发。
+
+加上参数就是命令行工具，例如 `EU-Overlord.cmd -Action Status`。
+文件格式：不带 BOM 的 UTF-8（BOM 会让 `@echo off` 失效）、CRLF 换行、批处理部分纯 ASCII。测试会逐项检查，并实际运行一次。
+
 ## 1. Windows 如何判断“你在不在 EEA”
 
 区域策略由 `SystemSettings.DataModel.dll` 评估，流程大致是：

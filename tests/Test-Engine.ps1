@@ -80,6 +80,12 @@ try {
     $Script:Lang = 'en'
     $logText = Get-Content -LiteralPath (Join-Path $Script:LogDir 'euoverlord.log') -Raw -Encoding UTF8
     Assert ($logText -match '\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\] \[OK\] Persistence task removed\.') 'log file is English with a Gregorian timestamp, even when the console is zh-TW'
+    $Script:Lang = 'zh-TW'
+    $console = Write-Log -Key ApplyDone -ArgKey @('Mode_Gentle', 'Ireland') -Level OK 6>&1 | Out-String
+    $Script:Lang = 'en'
+    $logText = Get-Content -LiteralPath (Join-Path $Script:LogDir 'euoverlord.log') -Raw -Encoding UTF8
+    Assert ($logText -match 'Mode=Gentle, Region=Ireland\.') 'translated arguments are English in the log file'
+    Assert ($console -match '模式＝溫和，地區＝愛爾蘭') 'translated arguments are localized on the console'
 
     Write-Host 'hardcore transform'
     Copy-Item -LiteralPath $fixture -Destination $Script:PolicyFile
@@ -129,6 +135,38 @@ try {
     New-Item -ItemType Directory -Path $Script:LegacyDataDir | Out-Null
     Invoke-LegacyMigration 6>$null
     Assert (Test-Path -LiteralPath $Script:LegacyDataDir) 'when both folders exist, the old one is left untouched'
+
+    Write-Host 'menu'
+    Assert ($Script:Version -match '^\d+\.\d+\.\d+$') "version '$Script:Version' looks like X.Y.Z"
+    $on = [pscustomobject]@{ mode = 'Gentle' }
+    Assert ((Get-MenuStateKey -State $on   -Region 68  -TaskInstalled $true  -Legacy $false) -eq 'MenuStateOn')          'menu: applied + task + EEA region = on'
+    Assert ((Get-MenuStateKey -State $null -Region 68  -TaskInstalled $false -Legacy $false) -eq 'MenuStateUnprotected') 'menu: EEA region without the task = unprotected'
+    Assert ((Get-MenuStateKey -State $on   -Region 237 -TaskInstalled $true  -Legacy $false) -eq 'MenuStateOff')         'menu: non-EEA region = off'
+    Assert ((Get-MenuStateKey -State $null -Region $null -TaskInstalled $false -Legacy $false) -eq 'MenuStateOff')       'menu: no region value = off'
+    Assert ((Get-MenuStateKey -State $on   -Region 68  -TaskInstalled $true  -Legacy $true) -eq 'MenuStateLegacy')       'menu: an old install is reported first'
+
+    Write-Host 'single file (EU-Overlord.cmd)'
+    $built = Join-Path $sandbox 'EU-Overlord.cmd'
+    & (Join-Path $repo 'tools\Build-SingleFile.ps1') -OutFile $built | Out-Null
+    $b = [IO.File]::ReadAllBytes($built)
+    $t = [Text.Encoding]::UTF8.GetString($b)
+    Assert ($t.StartsWith('@echo off')) 'starts with "@echo off" and no BOM'
+    Assert (-not [regex]::IsMatch($t, "(?<!`r)`n")) 'every line ends with CRLF'
+    $split = $t.IndexOf("#==EUO-ENGINE-BELOW==`r`n")
+    Assert ($split -gt 0 -and -not [regex]::IsMatch($t.Substring(0, $split), '[^\x00-\x7F]')) 'batch header is pure ASCII'
+    $src = ([IO.File]::ReadAllText($engine, [Text.Encoding]::UTF8).TrimStart([char]0xFEFF) -replace "`r`n", "`n")
+    $emb = ($t.Substring($split + "#==EUO-ENGINE-BELOW==`r`n".Length) -replace "`r`n", "`n")
+    Assert ($emb -eq $src) 'embedded engine is identical to src\EUOverlord.ps1'
+
+    $tempBefore = @(Get-ChildItem -LiteralPath $env:TEMP -Filter 'EUOverlord-*.ps1' -ErrorAction SilentlyContinue).Count
+    $out = (& $built -Action Status -Language en 2>&1 | Out-String)
+    $rc  = $LASTEXITCODE
+    $ok  = ($rc -eq 1 -and $out -match 'must run as Administrator') -or ($rc -eq 0 -and $out -match 'One-Click EU Overlord - Status')
+    Assert $ok "runs end to end with arguments (exit $rc)"
+    $out = ('' | & $built -Language en 2>&1 | Out-String)
+    Assert ($LASTEXITCODE -eq 2 -and $out -match 'needs an interactive window') 'without a console, the menu refuses instead of applying'
+    $tempAfter = @(Get-ChildItem -LiteralPath $env:TEMP -Filter 'EUOverlord-*.ps1' -ErrorAction SilentlyContinue).Count
+    Assert ($tempAfter -eq $tempBefore) 'temporary engine copy is deleted afterwards'
 }
 finally {
     Remove-Item -LiteralPath $sandbox -Recurse -Force -ErrorAction SilentlyContinue

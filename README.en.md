@@ -1,136 +1,113 @@
 [繁體中文](README.md) · [简体中文](README.zh-CN.md) · **English**
 
-# One-Click EU Overlord · 一鍵轉生歐盟爺
+# One-Click EU Overlord
 
-> *"EU Overlord"* (歐盟爺, short for 歐盟大老爺) is a joke: as far as Windows is concerned, users in the EU are the
-> overlords nobody dares to upset. They get to uninstall Edge, turn off Bing, and see far fewer ads and nags.
+Give your Windows 11 the treatment only EU users ("EU overlords") get: **uninstall Edge, turn off Bing in Search, and
+see far fewer ads and nags**. Windows updates won't quietly undo it.
+
+## Three steps
+
+1. **[⬇ Download EU-Overlord.cmd](https://github.com/PZW152/one-click-eu-overlord/releases/latest/download/EU-Overlord.cmd)**
+2. **Double-click** it and click **Yes** when Windows asks for permission
+3. **Press Enter**, then restart
+
+Want to go back? Double-click it again and type **3**.
+
+> **Seeing a warning?** The file has no paid code-signing certificate, so your browser and Windows will be cautious:
+> - Browser says the file may be harmful → choose **Keep** (in Edge, click "…" first)
+> - Blue "Windows protected your PC" → **More info** → **Run anyway**
+> - "Open File - Security Warning" → **Run**
 >
-> This tool gives any Windows 11 machine the full **EEA + DMA** (European Economic Area / Digital Markets Act)
-> user-benefit set in one click, and keeps it there across **Windows updates and reboots**.
+> It is a plain text file anyone can open in Notepad; the source is [src/EUOverlord.ps1](src/EUOverlord.ps1).
 
 ---
 
-## What the EU overlords get
-
-To comply with the EU **Digital Markets Act**, Microsoft ships a more user-respecting behavior set to Windows 11 in the
-**European Economic Area**, for example:
+## What you get
 
 - ✅ **Uninstall Microsoft Edge**, without other apps nagging you to reinstall it
-- ✅ **Uninstall the Microsoft Store and some built-in apps**
-- ✅ **Turn off Bing / web search in Windows Search**
-- ✅ **Third-party search providers** can appear in Windows Search
-- ✅ **Widgets**: turn off the Microsoft News and ads feed and limit data sharing
-- ✅ **A non-Edge default browser** also takes over `.svg / .xml / .mht / ftp` and similar types
-- ✅ **Far fewer promotions**, full-screen upsell pages and Edge marketing campaigns
+- ✅ **Uninstall the Microsoft Store** and some built-in apps
+- ✅ **Turn off Bing web results** in Windows Search
+- ✅ **Widgets**: turn off the news and ads feed
+- ✅ A new default browser takes over **every link type**
+- ✅ **Far fewer promotions**: full-screen upsells and Edge campaigns go away
 
-Two things decide all of this:
+The tool only unlocks these *choices*; it **doesn't** remove anything for you. Whether you actually uninstall Edge is
+your call.
 
-```
-C:\Windows\System32\IntegratedServicesRegionPolicySet.json         ← 84 region policies
-HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Control Panel\DeviceRegion   ← the device region Windows believes in
-```
+<details>
+<summary><b>What's the difference between menu options 1, 2, 3 and 4?</b></summary>
 
-**One-Click EU Overlord** switches your machine into the EEA state (the **superset** of those benefits) and installs a
-scheduled task that puts it back if an update reverts it.
+| Option | What it does | For |
+|--------|--------------|-----|
+| **1 Become an EU overlord** (recommended) | Sets the device region Windows believes in to Ireland, so Windows unlocks the EU features itself | Everyone |
+| **2 Hardcore** | Also rewrites the system's region policy file, so it works even if the region is changed back | People who still miss features after 1 |
+| **3 Undo** | Restores the region and policy file and removes the auto-protection (backups kept) | Going back |
+| **4 Remove completely** | Undo, then delete everything the tool left on the PC | Leaving no trace |
 
-> **About "superset"**: the tool mirrors the EEA policy set **exactly**, because that bundle is Microsoft-defined and
-> internally consistent. Every switch that gives EEA users a *choice* is turned on; the tool never force-disables a
-> feature for you. Whether you actually remove Edge or Bing is up to you. See the [policy reference](docs/en/FEATURES.md)
-> for every policy.
+Options 1 and 2 install an auto-protection task that checks at every logon and once a day, and puts the settings back
+if an update changed them.
+</details>
 
----
+<details>
+<summary><b>What exactly does it change? Is it safe?</b></summary>
 
-## Two one-click modes
+- **One registry value**: `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Control Panel\DeviceRegion` (the country
+  Windows thinks you are in).
+- **One system file** (option 2 only): `C:\Windows\System32\IntegratedServicesRegionPolicySet.json`, 84 region
+  feature switches.
+- **One scheduled task**: `OneClickEUOverlord-Persist`.
+- **One folder**: `C:\ProgramData\OneClickEUOverlord\`, holding backups of the originals, state and logs.
 
-| Mode | Launcher | What it does | Footprint | Survives updates |
-|------|----------|--------------|-----------|------------------|
-| **Gentle** (start here) | `1-Apply-Gentle.cmd` | Sets `DeviceRegion` to an EEA country (Ireland by default) so **Windows itself** computes the EEA states | Minimal: one registry value | Kept by the persistence task |
-| **Hardcore** | `2-Apply-Hardcore.cmd` | Gentle **plus** rewrites the policy file so every policy evaluates to its EEA state for **every region** | Moderate: rewrites a protected system file (backed up first) | Holds even if the region is reset |
+Everything is backed up first, and options 3 and 4 restore it completely. Nothing is collected or uploaded.
+Windows 11's UCPD protection blocks writes to the region value; the tool works around it for **that one value only**
+and leaves the protection on for everything else.
 
-Both modes:
+This is **not** a Microsoft-supported configuration; use at your own risk. Details in [How it works](docs/en/HOW-IT-WORKS.md)
+and [Security & disclaimer](SECURITY.md).
+</details>
 
-1. **Back up** the original registry value and policy file to `C:\ProgramData\OneClickEUOverlord\backups\`;
-2. Install a **SYSTEM scheduled task** that re-applies the state **at every logon and daily**;
-3. Record their state in `state.json`, so **Restore** can put things back exactly.
+<details>
+<summary><b>I chose 1 and restarted, but still can't uninstall Edge</b></summary>
 
-> **About UCPD**: Windows 11's UCPD driver blocks `reg.exe` / `powershell.exe` from writing `DeviceRegion`. The tool
-> first writes normally and reads the value back; only if that was blocked does it write this **one value** with a
-> **renamed copy of `reg.exe`** in a temp folder, which it deletes right after. It does **not** disable the UCPD
-> driver for the rest of the system.
+- Microsoft rolls features out in stages; some PCs need a few days or the next update.
+- Double-click again and choose **2 Hardcore**.
+- On a work PC managed by IT (MDM / domain), company policy may override the setting; ask your IT team.
+</details>
 
----
+<details>
+<summary><b>Command line (advanced)</b></summary>
 
-## How to use
-
-1. Download the latest `one-click-eu-overlord-vX.Y.Z.zip` from [Releases](https://github.com/PZW152/one-click-eu-overlord/releases/latest) and extract it.
-2. Open the `launchers\` folder and double-click the launcher you want:
-
-   | Launcher | Does |
-   |----------|------|
-   | `1-Apply-Gentle.cmd` | One-click Gentle mode |
-   | `2-Apply-Hardcore.cmd` | One-click Hardcore mode |
-   | `3-Restore.cmd` | Restore region and policy file, remove the task (backups kept) |
-   | `4-Status.cmd` | Show the current state |
-   | `5-Uninstall.cmd` | Restore, then delete all of the tool's data |
-
-3. Accept the UAC prompt (Administrator rights are required).
-4. **Sign out or restart** for the full effect.
-5. To remove Edge afterwards: *Settings → Apps → Installed apps → Microsoft Edge → Uninstall*.
-
-On-screen text follows the language you ranked **first** in *Settings → Time & language → Language & region*:
-**Traditional Chinese, Simplified Chinese or English**.
-
-### Command line
+`EU-Overlord.cmd` and `src\EUOverlord.ps1` take the same parameters; with none, you get the menu. Run as Administrator:
 
 ```powershell
-# In an elevated PowerShell
-.\src\EUOverlord.ps1 -Action Apply -Mode Hardcore -Region Germany
-.\src\EUOverlord.ps1 -Action Status -Language en
-.\src\EUOverlord.ps1 -Action Restore
-.\src\EUOverlord.ps1 -Action Uninstall -FullClean -Force
+.\EU-Overlord.cmd -Action Apply -Mode Hardcore -Region Germany
+.\EU-Overlord.cmd -Action Status -Language en
+.\EU-Overlord.cmd -Action Restore
+.\EU-Overlord.cmd -Action Uninstall -FullClean -Force
 ```
 
 | Parameter | Values |
 |-----------|--------|
-| `-Action` | `Apply` / `Restore` / `Status` / `Uninstall` (`Reapply` is used by the scheduled task) |
+| `-Action` | `Menu` (default) / `Apply` / `Restore` / `Status` / `Uninstall` (`Reapply` is used by the scheduled task) |
 | `-Mode` | `Gentle` (default) / `Hardcore` |
 | `-Region` | `Ireland` (default) / `Germany` / `France` / `Netherlands` / `Spain` / `Italy` / `Sweden` / `Poland` / `Finland` / `Austria` |
-| `-Language` | `auto` (default) / `zh-TW` / `zh-CN` / `en` |
+| `-Language` | `auto` (default: the first language in your Windows language settings) / `zh-TW` / `zh-CN` / `en` |
 | `-FullClean` | With `Uninstall`: also delete backups and logs |
 | `-Force` | Skip the confirmation prompts for Hardcore and full clean |
+</details>
 
-### Upgrading from One-Click EU Grandpa (v1.0.x)
+<details>
+<summary><b>Upgrading from One-Click EU Grandpa</b></summary>
 
-Run **Apply** once with the new version. It moves `C:\ProgramData\OneClickEUGrandpa\` to the new location, keeps your
-original backups, and replaces the old scheduled task.
-
----
-
-## Risks and caveats
-
-- This is **not** a Microsoft-supported configuration; it is region/feature customization of your own machine. Use at your own risk.
-- Try **Gentle** first. Hardcore rewrites a system file (backed up and restorable).
-- Some builds (reports mention 25H2) restore the policy file often during cumulative updates, which is why the persistence task exists.
-- If `DeviceRegion` is managed by MDM or domain policy, you may need Safe Mode or your administrator.
-- Microsoft rolls features out in A/B stages, so switching to the EEA does not guarantee every item appears at once.
-- The tool collects and uploads nothing. Every action is logged to `C:\ProgramData\OneClickEUOverlord\logs\euoverlord.log` (in English, ready to attach to an issue).
+Pick any of options 1-4 in the new version. It moves `C:\ProgramData\OneClickEUGrandpa\` to the new location, keeps
+your original backups, and replaces the old scheduled task.
+</details>
 
 ## More documentation
 
-- [Policy reference](docs/en/FEATURES.md): all 84 policies, global default vs. EEA state
-- [How it works](docs/en/HOW-IT-WORKS.md): region detection, both modes, UCPD, persistence, file locations
-- [Releasing](docs/en/RELEASING.md): for maintainers
-- [Changelog](CHANGELOG.md) · [Security & disclaimer](SECURITY.md)
+[Policy reference](docs/en/FEATURES.md) · [How it works](docs/en/HOW-IT-WORKS.md) · [Releasing](docs/en/RELEASING.md) · [Changelog](CHANGELOG.md) · [Security & disclaimer](SECURITY.md)
 
-## Development
+Developers: `powershell -NoProfile -ExecutionPolicy Bypass -File tests\Test-Engine.ps1` runs the tests (no
+Administrator rights needed, nothing on the system is touched).
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File tests\Test-Engine.ps1
-```
-
-The tests need no Administrator rights and never touch the system: every path points into a temp sandbox.
-GitHub Actions runs them on Windows on every push.
-
-## License
-
-[MIT](LICENSE). No warranty.
+License: [MIT](LICENSE). No warranty.

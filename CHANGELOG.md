@@ -4,6 +4,36 @@
 Each version lists Traditional Chinese, Simplified Chinese and English. The release workflow uses the matching section
 as the release notes.
 
+## v1.2.0 — 2026-10-20
+
+**繁體中文**
+
+- **只要下載一個檔案**：[EU-Overlord.cmd](https://github.com/PZW152/one-click-eu-overlord/releases/latest/download/EU-Overlord.cmd)。不用解壓縮、不用找資料夾，雙擊就能用。原本的 `launchers\` 資料夾和 zip 已移除。
+- **雙擊後是選單**：自動顯示目前狀態，直接按 Enter＝推薦的一鍵轉生；要還原就再雙擊一次選 3。會自己要求系統管理員權限，做完會問要不要重新開機。
+- README 精簡成「下載 → 雙擊 → 按 Enter」三步驟，並說明遇到瀏覽器或 Windows 警告時怎麼做；進階內容收進折疊區。
+- 修正：日誌檔應為英文，但「套用完成」那行會混入主控台語言的模式與地區名稱（例如 `Mode=溫和`）。
+- 測試增加到 40 項，包含選單狀態判斷，以及實際建出並執行單一檔案。
+
+**简体中文**
+
+- **只需下载一个文件**：[EU-Overlord.cmd](https://github.com/PZW152/one-click-eu-overlord/releases/latest/download/EU-Overlord.cmd)。不用解压、不用找文件夹，双击就能用。原来的 `launchers\` 文件夹和 zip 已删除。
+- **双击后是菜单**：自动显示当前状态，直接按 Enter＝推荐的一键转生；要恢复就再双击一次选 3。会自己请求管理员权限，完成后会问是否重启。
+- README 精简成“下载 → 双击 → 按 Enter”三步，并说明遇到浏览器或 Windows 警告时怎么办；进阶内容收进折叠区。
+- 修复：日志文件应为英文，但“应用完成”那一行会混入控制台语言的模式和地区名称（例如 `Mode=溫和`）。
+- 测试增加到 40 项，包括菜单状态判断，以及实际构建并运行单文件。
+
+**English**
+
+- **One file to download**: [EU-Overlord.cmd](https://github.com/PZW152/one-click-eu-overlord/releases/latest/download/EU-Overlord.cmd).
+  No unzipping, no folders: double-click it. The `launchers\` folder and the zip are gone.
+- **A menu on double-click**: it shows the current status, and plain Enter means the recommended option; to undo,
+  double-click again and choose 3. It asks for Administrator rights itself and offers to restart when done.
+- The README is now three steps (download → double-click → Enter), explains what to do about browser and Windows
+  warnings, and folds the advanced material away.
+- Fix: the log file is meant to be English, but the "Apply complete" line picked up mode and region names in the
+  console language (e.g. `Mode=溫和`).
+- 40 tests, now including the menu status logic and building and running the single file.
+
 ## v1.1.0 — 2026-10-20
 
 **繁體中文**

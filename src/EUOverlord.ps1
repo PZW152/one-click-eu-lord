@@ -38,8 +38,10 @@
 
 [CmdletBinding()]
 param(
-    [ValidateSet('Apply', 'Reapply', 'Restore', 'Status', 'Uninstall')]
-    [string]$Action = 'Status',
+    # Menu (the default) is the interactive, double-click experience. The other
+    # actions are for scripts and the scheduled task.
+    [ValidateSet('Menu', 'Apply', 'Reapply', 'Restore', 'Status', 'Uninstall')]
+    [string]$Action = 'Menu',
 
     # Gentle = region only. Hardcore = region + JSON policy override.
     [ValidateSet('Gentle', 'Hardcore')]
@@ -66,6 +68,7 @@ Set-StrictMode -Version Latest
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
+$Script:Version    = '1.2.0'   # must match the release tag (checked by the release workflow)
 $Script:AppName    = 'OneClickEUOverlord'
 $Script:DataDir    = Join-Path $env:ProgramData $Script:AppName
 $Script:BackupDir  = Join-Path $Script:DataDir 'backups'
@@ -146,6 +149,24 @@ $Script:Msg = @{
         Yes                = 'YES'
         No                 = 'no'
         LegacyFound        = 'A previous install (One-Click EU Grandpa) was found. Run Apply once to migrate it.'
+        MenuTitle            = 'One-Click EU Overlord v{0}'
+        MenuStateOn          = 'Status: you are already an EU overlord ({0} mode).'
+        MenuStateUnprotected = 'Status: the device region is already in the EEA, but nothing protects it; a Windows update may change it back.'
+        MenuStateOff         = 'Status: not an EU overlord yet.'
+        MenuStateLegacy      = 'Status: an older version (One-Click EU Grandpa) is installed. Options 1-4 upgrade it automatically and keep its backups.'
+        MenuOpt1             = '[1] Become an EU overlord (recommended) — changes one setting, the safest choice'
+        MenuOpt2             = '[2] Hardcore — also rewrites a system policy file, the most robust'
+        MenuOpt3             = '[3] Undo — put everything back the way it was'
+        MenuOpt4             = "[4] Remove completely — undo, then delete all of this tool's data"
+        MenuOpt0             = '[0] Exit'
+        MenuPrompt           = 'Type a number and press Enter (just Enter = 1)'
+        MenuInvalid          = 'There is no such option. Please try again.'
+        AfterApply           = 'Done! After a restart you can uninstall Edge and other apps in Settings > Apps > Installed apps.'
+        RestartPrompt        = 'A restart is needed for everything to take effect. Restart now? [y/N]'
+        PressEnter           = 'Press Enter to close this window'
+        RequestingAdmin      = 'Administrator permission is needed. Click "Yes" in the window that appears...'
+        UacDeclined          = 'Administrator permission was not granted, so nothing was changed.'
+        NotInteractive       = 'The menu needs an interactive window. For scripts, use -Action Apply, Restore, Status or Uninstall.'
         Mode_Gentle        = 'Gentle'
         Mode_Hardcore      = 'Hardcore'
         Ireland = 'Ireland'; Germany = 'Germany'; France = 'France'; Netherlands = 'Netherlands'; Spain = 'Spain'
@@ -199,6 +220,24 @@ $Script:Msg = @{
         Yes                = '是'
         No                 = '否'
         LegacyFound        = '偵測到舊版安裝（One-Click EU Grandpa）。執行一次「套用」即可自動遷移。'
+        MenuTitle            = '一鍵轉生歐盟爺 v{0}'
+        MenuStateOn          = '目前狀態：已經是歐盟大老爺了（{0}模式）。'
+        MenuStateUnprotected = '目前狀態：裝置地區已經是 EEA，但沒有受到保護，系統更新後可能被改回去。'
+        MenuStateOff         = '目前狀態：還不是歐盟大老爺。'
+        MenuStateLegacy      = '目前狀態：裝了舊版（One-Click EU Grandpa）。選 1～4 任一項都會自動升級，並保留原本的備份。'
+        MenuOpt1             = '[1] 一鍵轉生（推薦）— 只改一個設定，最安全'
+        MenuOpt2             = '[2] 徹底轉生 — 連系統策略檔一起改，效果最穩'
+        MenuOpt3             = '[3] 還原 — 變回原本的樣子'
+        MenuOpt4             = '[4] 完全移除 — 還原，並刪除本工具的所有資料'
+        MenuOpt0             = '[0] 離開'
+        MenuPrompt           = '請輸入數字後按 Enter（直接按 Enter＝1）'
+        MenuInvalid          = '沒有這個選項，請再輸入一次。'
+        AfterApply           = '完成！重新開機後，就能到「設定 → 應用程式 → 已安裝的應用程式」解除安裝 Edge 等程式。'
+        RestartPrompt        = '需要重新開機才會完全生效。現在重新開機嗎？[y/N]'
+        PressEnter           = '按 Enter 關閉視窗'
+        RequestingAdmin      = '需要系統管理員權限，請在跳出的視窗中按「是」……'
+        UacDeclined          = '沒有取得系統管理員權限，所以沒有做任何變更。'
+        NotInteractive       = '選單需要在互動視窗中使用。腳本請改用 -Action Apply、Restore、Status 或 Uninstall。'
         Mode_Gentle        = '溫和'
         Mode_Hardcore      = '徹底'
         Ireland = '愛爾蘭'; Germany = '德國'; France = '法國'; Netherlands = '荷蘭'; Spain = '西班牙'
@@ -252,6 +291,24 @@ $Script:Msg = @{
         Yes                = '是'
         No                 = '否'
         LegacyFound        = '检测到旧版安装（One-Click EU Grandpa）。运行一次“应用”即可自动迁移。'
+        MenuTitle            = '一键转生欧盟爷 v{0}'
+        MenuStateOn          = '当前状态：已经是欧盟大老爷了（{0}模式）。'
+        MenuStateUnprotected = '当前状态：设备区域已经是 EEA，但没有受到保护，系统更新后可能被改回去。'
+        MenuStateOff         = '当前状态：还不是欧盟大老爷。'
+        MenuStateLegacy      = '当前状态：装了旧版（One-Click EU Grandpa）。选 1～4 任一项都会自动升级，并保留原来的备份。'
+        MenuOpt1             = '[1] 一键转生（推荐）— 只改一个设置，最安全'
+        MenuOpt2             = '[2] 彻底转生 — 连系统策略文件一起改，效果最稳'
+        MenuOpt3             = '[3] 恢复 — 变回原来的样子'
+        MenuOpt4             = '[4] 完全移除 — 恢复，并删除本工具的所有数据'
+        MenuOpt0             = '[0] 退出'
+        MenuPrompt           = '请输入数字后按 Enter（直接按 Enter＝1）'
+        MenuInvalid          = '没有这个选项，请重新输入。'
+        AfterApply           = '完成！重启后，就能到“设置 → 应用 → 安装的应用”卸载 Edge 等程序。'
+        RestartPrompt        = '需要重启才会完全生效。现在重启吗？[y/N]'
+        PressEnter           = '按 Enter 关闭窗口'
+        RequestingAdmin      = '需要管理员权限，请在弹出的窗口中点“是”……'
+        UacDeclined          = '没有获得管理员权限，所以没有做任何更改。'
+        NotInteractive       = '菜单需要在交互窗口中使用。脚本请改用 -Action Apply、Restore、Status 或 Uninstall。'
         Mode_Gentle        = '温和'
         Mode_Hardcore      = '彻底'
         Ireland = '爱尔兰'; Germany = '德国'; France = '法国'; Netherlands = '荷兰'; Spain = '西班牙'
@@ -314,21 +371,26 @@ function Initialize-DataDir {
 }
 
 # Logs a message: localized on the console, English in the log file.
+# -Arg values are used as-is; -ArgKey values are message keys translated per
+# language, so the log file never picks up the console's language.
 function Write-Log {
     param(
         [Parameter(Mandatory)][string]$Key,
         [object[]]$Arg = @(),
+        [string[]]$ArgKey = @(),
         [ValidateSet('INFO', 'WARN', 'ERROR', 'OK')][string]$Level = 'INFO'
     )
     # Invariant culture: on zh-TW the thread calendar would print the Minguo year.
     $stamp = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss', [Globalization.CultureInfo]::InvariantCulture)
+    $fileArgs    = @($Arg) + @($ArgKey | ForEach-Object { T -Key $_ -Lang 'en' })
+    $consoleArgs = @($Arg) + @($ArgKey | ForEach-Object { T -Key $_ })
     try {
         Initialize-DataDir
-        $fileLine = "[$stamp] [$Level] $(T -Key $Key -Arg $Arg -Lang 'en')"
+        $fileLine = "[$stamp] [$Level] $(T -Key $Key -Arg $fileArgs -Lang 'en')"
         Add-Content -LiteralPath (Join-Path $Script:LogDir 'euoverlord.log') -Value $fileLine -Encoding UTF8
     } catch { }
     $color = switch ($Level) { 'ERROR' { 'Red' } 'WARN' { 'Yellow' } 'OK' { 'Green' } default { 'Gray' } }
-    Write-Host "[$stamp] [$Level] $(T -Key $Key -Arg $Arg)" -ForegroundColor $color
+    Write-Host "[$stamp] [$Level] $(T -Key $Key -Arg $consoleArgs)" -ForegroundColor $color
 }
 
 function Read-State {
@@ -596,7 +658,7 @@ function Invoke-Apply {
     }
 
     if (-not $FromReapply) { Install-PersistTask }
-    Write-Log -Key ApplyDone -Arg @((T -Key "Mode_$Mode"), (Get-RegionLabel $Region)) -Level OK
+    Write-Log -Key ApplyDone -ArgKey @("Mode_$Mode", $Region) -Level OK
 }
 
 function Invoke-Reapply {
@@ -667,11 +729,116 @@ function Invoke-Status {
 }
 
 # ---------------------------------------------------------------------------
+# Interactive menu (what a double-click shows)
+# ---------------------------------------------------------------------------
+# Picks the one-line status shown at the top of the menu.
+function Get-MenuStateKey {
+    param($State, $Region, [bool]$TaskInstalled, [bool]$Legacy)
+    if ($Legacy) { return 'MenuStateLegacy' }
+    $isEea = ($null -ne $Region) -and ($Script:GeoIds.Values -contains [int]$Region)
+    if ($isEea -and $TaskInstalled -and (Test-StateField $State 'mode')) { return 'MenuStateOn' }
+    if ($isEea) { return 'MenuStateUnprotected' }
+    return 'MenuStateOff'
+}
+
+function Test-Interactive {
+    try { return [Environment]::UserInteractive -and -not [Console]::IsInputRedirected } catch { return $false }
+}
+
+function Confirm-Hardcore {
+    Write-Host ''
+    Write-Host ('  ' + (T HardcoreWarn)) -ForegroundColor Yellow
+    Write-Host "  $Script:PolicyFile" -ForegroundColor Yellow
+    Write-Host ('  ' + (T HardcoreWarn2)) -ForegroundColor Yellow
+    if (Test-Yes (Read-Host ('  ' + (T ContinuePrompt)))) { return $true }
+    Write-Log -Key HardcoreCancelled
+    return $false
+}
+
+function Request-Restart {
+    Write-Host ''
+    if (Test-Yes (Read-Host ('  ' + (T RestartPrompt)))) { Restart-Computer -Force }
+}
+
+<#
+  Relaunches this script elevated in a new window and waits for it, so a
+  double-click needs no "Run as administrator". If the user declines UAC,
+  nothing has been changed and we say so in their language.
+#>
+function Invoke-SelfElevation {
+    Write-Host (T RequestingAdmin) -ForegroundColor Cyan
+    $argList = "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" -Action Menu -Language $Script:Lang"
+    try {
+        $p = Start-Process -FilePath 'powershell.exe' -ArgumentList $argList -Verb RunAs -Wait -PassThru
+        if ($p) { return $p.ExitCode }
+        return 0
+    } catch {
+        Write-Host (T UacDeclined) -ForegroundColor Yellow
+        [void](Read-Host (T PressEnter))
+        return 1
+    }
+}
+
+function Invoke-Menu {
+    $state  = Read-State
+    $task   = [bool](Get-ScheduledTask -TaskName $Script:TaskName -ErrorAction SilentlyContinue)
+    $key    = Get-MenuStateKey -State $state -Region (Get-DeviceRegionValue) -TaskInstalled $task -Legacy (Test-LegacyInstall)
+    $mode   = if (Test-StateField $state 'mode') { T -Key "Mode_$($state.mode)" } else { '' }
+    $color  = switch ($key) { 'MenuStateOn' { 'Green' } 'MenuStateOff' { 'Gray' } default { 'Yellow' } }
+
+    Write-Host ''
+    Write-Host ('  ' + (T -Key MenuTitle -Arg @($Script:Version))) -ForegroundColor Cyan
+    Write-Host '  =============================================='
+    Write-Host ('  ' + (T -Key $key -Arg @($mode))) -ForegroundColor $color
+    Write-Host ''
+    foreach ($k in 'MenuOpt1', 'MenuOpt2', 'MenuOpt3', 'MenuOpt4', 'MenuOpt0') { Write-Host ('  ' + (T $k)) }
+    Write-Host ''
+
+    do {
+        $choice = "$(Read-Host ('  ' + (T MenuPrompt)))".Trim()
+        if ($choice -eq '') { $choice = '1' }
+        $valid = $choice -in @('0', '1', '2', '3', '4')
+        if (-not $valid) { Write-Host ('  ' + (T MenuInvalid)) -ForegroundColor Yellow }
+    } until ($valid)
+    if ($choice -eq '0') { return }
+    Write-Host ''
+
+    switch ($choice) {
+        '1' {
+            Invoke-LegacyMigration
+            Invoke-Apply -Mode Gentle -Region $Region
+            Write-Host ''; Write-Host ('  ' + (T AfterApply)) -ForegroundColor Green
+            Request-Restart
+        }
+        '2' {
+            if (Confirm-Hardcore) {
+                Invoke-LegacyMigration
+                Invoke-Apply -Mode Hardcore -Region $Region
+                Write-Host ''; Write-Host ('  ' + (T AfterApply)) -ForegroundColor Green
+                Request-Restart
+            }
+        }
+        '3' { Invoke-LegacyMigration; Invoke-Restore; Request-Restart }
+        '4' { Invoke-LegacyMigration; Invoke-Uninstall -FullClean }
+    }
+    Write-Host ''
+    [void](Read-Host ('  ' + (T PressEnter)))
+}
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 # CJK text needs a Unicode console; the default zh-TW code page (950) cannot show
 # Simplified Chinese at all. Best effort: the console may be redirected.
 try { [Console]::OutputEncoding = New-Object Text.UTF8Encoding($false) } catch { }
+
+if ($Action -eq 'Menu') {
+    # Never let a non-interactive caller fall through to "Enter = apply".
+    if (-not (Test-Interactive)) { Write-Host (T NotInteractive) -ForegroundColor Red; exit 2 }
+    if (-not (Test-Admin)) { exit (Invoke-SelfElevation) }
+    Invoke-Menu
+    exit 0
+}
 
 if (-not (Test-Admin)) {
     Write-Host (T NeedAdmin) -ForegroundColor Red
@@ -684,14 +851,7 @@ if ($Action -ne 'Status') { Invoke-LegacyMigration }
 switch ($Action) {
     'Apply' {
         if ($Mode -eq 'Hardcore' -and -not $Force) {
-            Write-Host ''
-            Write-Host ('  ' + (T HardcoreWarn)) -ForegroundColor Yellow
-            Write-Host "  $Script:PolicyFile" -ForegroundColor Yellow
-            Write-Host ('  ' + (T HardcoreWarn2)) -ForegroundColor Yellow
-            if (-not (Test-Yes (Read-Host ('  ' + (T ContinuePrompt))))) {
-                Write-Log -Key HardcoreCancelled
-                exit 0
-            }
+            if (-not (Confirm-Hardcore)) { exit 0 }
         }
         Invoke-Apply -Mode $Mode -Region $Region
         Invoke-Status

@@ -13,3 +13,6 @@ logs/
 
 # Any accidental local copy of the system policy file
 IntegratedServicesRegionPolicySet*.json
+
+# Build output (tools/Build-SingleFile.ps1)
+dist/

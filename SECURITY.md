@@ -16,6 +16,7 @@
 | `C:\Windows\System32\IntegratedServicesRegionPolicySet.json` | 只有徹底模式會改；強制 EEA 策略 | ✅ 從備份還原 |
 | 排程工作 `OneClickEUOverlord-Persist` | 每次登入／每天重新套用 | ✅ 還原時移除 |
 | `C:\ProgramData\OneClickEUOverlord\` | 備份、狀態、日誌 | ✅ `-FullClean` 刪除 |
+| `%TEMP%\EUOverlord-<亂數>.ps1` | `EU-Overlord.cmd` 執行時暫時解出的引擎 | ✅ 執行結束即刪除 |
 
 本工具**不會**蒐集或上傳任何資料、安裝背景服務、永久停用 Windows 安全驅動（UCPD），或修改與地區無關的系統設定。
 
@@ -47,6 +48,7 @@ Windows 11 的 UserChoice Protection Driver（UCPD）以映像名稱比對，阻
 | `C:\Windows\System32\IntegratedServicesRegionPolicySet.json` | 只有彻底模式会改；强制 EEA 策略 | ✅ 从备份恢复 |
 | 计划任务 `OneClickEUOverlord-Persist` | 每次登录／每天重新应用 | ✅ 恢复时删除 |
 | `C:\ProgramData\OneClickEUOverlord\` | 备份、状态、日志 | ✅ `-FullClean` 删除 |
+| `%TEMP%\EUOverlord-<随机数>.ps1` | `EU-Overlord.cmd` 运行时临时解出的引擎 | ✅ 运行结束即删除 |
 
 本工具**不会**收集或上传任何数据、安装后台服务、永久禁用 Windows 安全驱动（UCPD），或修改与区域无关的系统设置。
 
@@ -78,6 +80,7 @@ Windows 11 的 UserChoice Protection Driver（UCPD）按映像名称匹配，阻
 | `C:\Windows\System32\IntegratedServicesRegionPolicySet.json` | Hardcore mode only; forces the EEA policies | ✅ restored from backup |
 | Scheduled task `OneClickEUOverlord-Persist` | Re-applies at logon and daily | ✅ removed on Restore |
 | `C:\ProgramData\OneClickEUOverlord\` | Backups, state, logs | ✅ deleted with `-FullClean` |
+| `%TEMP%\EUOverlord-<random>.ps1` | The engine, unpacked while `EU-Overlord.cmd` runs | ✅ deleted when it finishes |
 
 The tool does **not** collect or upload any data, install background services, permanently disable a Windows security
 driver (UCPD), or change system settings unrelated to the region.

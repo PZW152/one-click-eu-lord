@@ -2,6 +2,21 @@
 
 # 運作原理
 
+## 0. 單一檔案與選單
+
+使用者下載的 `EU-Overlord.cmd` 由 [`tools\Build-SingleFile.ps1`](../tools/Build-SingleFile.ps1) 產生：前面是一小段純 ASCII 的批次檔，後面原封不動接上 `src\EUOverlord.ps1`。
+
+雙擊時：
+
+1. 批次檔把分隔線之後的引擎寫成 `%TEMP%\EUOverlord-<亂數>.ps1`（含 BOM 的 UTF-8），用 Windows PowerShell 執行，結束後刪除。
+2. 沒有參數時，引擎開啟**選單**：顯示目前狀態，直接按 Enter＝選項 1。
+3. 沒有系統管理員權限時，引擎透過 UAC 以系統管理員身分開新視窗；若你拒絕，會說明「沒有做任何變更」。
+4. 套用或還原後，會問要不要立刻重新開機（預設不要）。
+5. 沒有互動式主控台時（例如被腳本呼叫、輸入被導向），選單拒絕執行並回傳 2，避免「Enter＝1」被誤觸發。
+
+加上參數就是命令列工具，例如 `EU-Overlord.cmd -Action Status`。
+檔案格式：無 BOM 的 UTF-8（BOM 會讓 `@echo off` 失效）、CRLF 換行、批次檔部分純 ASCII。測試會逐項檢查，並實際執行一次。
+
 ## 1. Windows 怎麼判斷「你在不在 EEA」
 
 地區策略由 `SystemSettings.DataModel.dll` 評估，流程大致是：

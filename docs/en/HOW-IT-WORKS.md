@@ -2,6 +2,26 @@
 
 # How it works
 
+## 0. The single file and the menu
+
+The `EU-Overlord.cmd` users download is produced by [`tools\Build-SingleFile.ps1`](../../tools/Build-SingleFile.ps1):
+a short, pure-ASCII batch header followed by `src\EUOverlord.ps1`, unchanged.
+
+On a double-click:
+
+1. The batch header writes the engine (everything after the marker line) to `%TEMP%\EUOverlord-<random>.ps1` as UTF-8
+   with BOM, runs it with Windows PowerShell, and deletes it afterwards.
+2. With no arguments the engine opens the **menu**: it shows the current status, and plain Enter means option 1.
+3. Without Administrator rights the engine reopens itself elevated through UAC; if you decline, it says that nothing
+   was changed.
+4. After applying or undoing, it asks whether to restart now (default: no).
+5. Without an interactive console (called from a script, input redirected) the menu refuses and exits with 2, so
+   "Enter = 1" can never be triggered by accident.
+
+With arguments it is a command-line tool, for example `EU-Overlord.cmd -Action Status`.
+File format: UTF-8 without BOM (a BOM breaks `@echo off`), CRLF line endings, pure-ASCII batch header. The tests check
+each of these and run the file once.
+
 ## 1. How Windows decides whether you are in the EEA
 
 Region policies are evaluated by `SystemSettings.DataModel.dll`, roughly like this:

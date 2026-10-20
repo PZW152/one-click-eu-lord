@@ -1,129 +1,104 @@
 [繁體中文](README.md) · **简体中文** · [English](README.en.md)
 
-# 一键转生欧盟爷 · One-Click EU Overlord
+# 一键转生欧盟爷
 
-> “欧盟爷”就是**欧盟大老爷**——在 Windows 眼里，住在欧盟的用户就是得罪不起的大老爷：
-> 想卸 Edge 就卸、想关 Bing 就关、广告推销少一大半。
+让你的 Windows 11 享有欧盟用户（欧盟大老爷）才有的待遇：**可以卸载 Edge、关掉 Bing 搜索、少看一堆广告推销**。之后系统更新也不会把它改回去。
+
+## 三步就好
+
+1. **[⬇ 下载 EU-Overlord.cmd](https://github.com/PZW152/one-click-eu-overlord/releases/latest/download/EU-Overlord.cmd)**
+2. **双击**它，Windows 问是否允许时点“**是**”
+3. **直接按 Enter**，然后重启
+
+想变回原样？再双击一次，输入 **3**。
+
+> **弹出警告怎么办？** 这个文件没有花钱买数字签名，所以浏览器和 Windows 会提醒你：
+> - 浏览器说文件可能有害 → 选“**保留**”（Edge 要先点“…”）
+> - 蓝色的“Windows 已保护你的电脑”→ 点“**更多信息**”→“**仍要运行**”
+> - “打开文件 - 安全警告”→ 点“**运行**”
 >
-> 这个工具让任何一台装好的 Windows 11，一键获得“欧洲经济区（EEA）＋ DMA（数字市场法）”版本的**全部用户福利**，
-> 并且**不会因为系统更新或重启被悄悄刷回去**。
+> 它是纯文本文件，任何人都能用记事本打开检查；源代码就在 [src/EUOverlord.ps1](src/EUOverlord.ps1)。
 
 ---
 
-## 欧盟大老爷有什么好处
+## 转生后有什么好处
 
-微软为了遵守欧盟《数字市场法》（DMA），在**欧洲经济区（EEA）**的 Windows 11 上开放了一整套对用户更友好的行为，例如：
+- ✅ 可以**卸载 Microsoft Edge**，其他程序也不会一直让你装回来
+- ✅ 可以**卸载 Microsoft Store** 和部分内置应用
+- ✅ 可以**关掉 Windows 搜索中的 Bing 网页结果**
+- ✅ **小组件**可以关掉新闻和广告信息流
+- ✅ 换成别的浏览器当默认时，**所有链接类型一起换**
+- ✅ **少很多推销**：全屏广告页、硬塞 Edge 的活动都会消失
 
-- ✅ **可以卸载 Microsoft Edge**，卸载后其他程序也不会一直让你装回来
-- ✅ **可以卸载 Microsoft Store 和部分系统应用**
-- ✅ **可以关闭 Windows 搜索中的 Bing／网页搜索**
-- ✅ **第三方搜索提供商**可以出现在系统搜索中
-- ✅ **小组件（Widgets）**可以关闭 Microsoft News 和广告信息流，并限制数据共享
-- ✅ **设置非 Edge 的默认浏览器**时，连 `.svg / .xml / .mht / ftp` 等类型一起接管
-- ✅ **大幅减少推广、全屏推销页、把 Edge 塞给你的营销活动**
+工具只是把这些“选择权”打开，**不会**替你删除任何东西——要不要真的卸载 Edge，由你决定。
 
-这些开关由两样东西决定：
+<details>
+<summary><b>菜单里的 1、2、3、4 有什么区别？</b></summary>
 
-```
-C:\Windows\System32\IntegratedServicesRegionPolicySet.json         ← 84 条区域策略
-HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Control Panel\DeviceRegion   ← Windows 认定的设备区域
-```
+| 选项 | 做什么 | 适合谁 |
+|------|--------|--------|
+| **1 一键转生**（推荐） | 只把 Windows 认定的“设备区域”改成爱尔兰，让 Windows 自己开放欧盟功能 | 所有人 |
+| **2 彻底转生** | 另外改写系统的区域策略文件，即使区域被改回去也照样有效 | 选 1 之后功能还是没出现的人 |
+| **3 恢复** | 把区域和策略文件恢复原状、移除自动保护（保留备份） | 想变回去的人 |
+| **4 完全移除** | 恢复，并删除本工具留在电脑上的所有数据 | 不想留任何痕迹的人 |
 
-**一键转生欧盟爷**把你的电脑切换到 EEA 状态，拿到上面**整套福利的超集**，再用计划任务确保更新后自动补回。
+1 和 2 都会安装一个“自动保护”计划任务：每次登录和每天检查一次，系统更新把设置改回去时自动补回。
+</details>
 
-> **关于“超集”**：本工具采用与 EEA **完全一致**的策略集——那是微软官方定义、彼此协调的一整套。
-> 凡是 EEA 版“给你选择权”的开关都会打开；工具**不会**替你把功能强行关掉，
-> 要不要真的卸 Edge、关 Bing，由你决定。每条策略的对照见[策略对照表](docs/zh-CN/FEATURES.md)。
+<details>
+<summary><b>它到底改了我电脑的什么？安全吗？</b></summary>
 
----
+- **一个注册表值**：`HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Control Panel\DeviceRegion`（Windows 判断你在哪个国家）。
+- **一个系统文件**（只有选 2 才改）：`C:\Windows\System32\IntegratedServicesRegionPolicySet.json`，84 条区域功能开关。
+- **一个计划任务**：`OneClickEUOverlord-Persist`。
+- **一个文件夹**：`C:\ProgramData\OneClickEUOverlord\`，存放原始文件备份、状态和日志。
 
-## 两种一键模式
+动手前都会先备份，选 3 或 4 就能完整恢复。不收集、不上传任何数据。
+Windows 11 的 UCPD 防护会拦截修改区域的写入，工具只针对这**一个值**绕过，不会关闭整台电脑的防护。
 
-| 模式 | 启动文件 | 做什么 | 侵入性 | 更新后是否保留 |
-|------|----------|--------|--------|----------------|
-| **温和**（建议先用） | `1-Apply-Gentle.cmd` | 只把 `DeviceRegion` 改成 EEA 国家（默认爱尔兰），让 **Windows 自己**算出 EEA 状态 | 极低，只改一个注册表值 | 由持久化计划任务保证 |
-| **彻底** | `2-Apply-Hardcore.cmd` | 温和模式 **＋** 改写策略文件，让每条策略对**所有地区**都是 EEA 状态 | 中，改写一个受保护的系统文件（先备份） | 即使区域被重置也仍然生效 |
+这**不是**微软支持的配置，请自行承担风险。详细说明见[工作原理](docs/zh-CN/HOW-IT-WORKS.md)和[安全性与免责声明](SECURITY.md)。
+</details>
 
-两种模式都会：
+<details>
+<summary><b>选了 1，重启后还是不能卸载 Edge？</b></summary>
 
-1. 先把原始注册表值和原始策略文件**备份**到 `C:\ProgramData\OneClickEUOverlord\backups\`；
-2. 安装 **SYSTEM 权限的计划任务**，在**每次登录＋每天**自动重新应用；
-3. 把状态记录在 `state.json`，让“恢复”能准确还原。
+- 微软会分批推送功能，有些电脑要等几天或下一次更新。
+- 可以再双击一次改选 **2 彻底转生**。
+- 公司电脑如果由 IT 管理（MDM／域），设置可能被公司策略覆盖，请联系 IT。
+</details>
 
-> **关于 UCPD**：Windows 11 的 UCPD 驱动会拦截 `reg.exe` / `powershell.exe` 对 `DeviceRegion` 的写入。
-> 本工具先正常写入并读回验证，若被拦截才用临时目录中**重命名的 `reg.exe` 副本**写入这**一个值**，用完立即删除。
-> 它**不会**禁用整台电脑的 UCPD 安全驱动。
+<details>
+<summary><b>命令行用法（进阶）</b></summary>
 
----
-
-## 使用方法
-
-1. 到 [Releases](https://github.com/PZW152/one-click-eu-overlord/releases/latest) 下载最新的 `one-click-eu-overlord-vX.Y.Z.zip` 并解压。
-2. 打开 `launchers\` 文件夹，双击要用的启动文件：
-
-   | 启动文件 | 功能 |
-   |----------|------|
-   | `1-Apply-Gentle.cmd` | 一键温和模式 |
-   | `2-Apply-Hardcore.cmd` | 一键彻底模式 |
-   | `3-Restore.cmd` | 恢复区域和策略文件、删除计划任务（保留备份） |
-   | `4-Status.cmd` | 查看当前状态 |
-   | `5-Uninstall.cmd` | 恢复并删除本工具的所有数据 |
-
-3. 弹出 UAC 时点“是”（需要管理员权限）。
-4. **注销或重启**让效果完全生效。
-5. 之后要卸载 Edge：“设置 → 应用 → 安装的应用 → Microsoft Edge → 卸载”。
-
-界面文字会根据你在“设置 → 时间和语言 → 语言和区域”中排在**第一位**的语言，自动选择**繁體中文、简体中文或 English**。
-
-### 命令行参数
+`EU-Overlord.cmd` 和 `src\EUOverlord.ps1` 接受相同参数；不带参数就是菜单。以管理员身份运行：
 
 ```powershell
-# 以管理员身份打开 PowerShell
-.\src\EUOverlord.ps1 -Action Apply -Mode Hardcore -Region Germany
-.\src\EUOverlord.ps1 -Action Status -Language zh-CN
-.\src\EUOverlord.ps1 -Action Restore
-.\src\EUOverlord.ps1 -Action Uninstall -FullClean -Force
+.\EU-Overlord.cmd -Action Apply -Mode Hardcore -Region Germany
+.\EU-Overlord.cmd -Action Status -Language zh-CN
+.\EU-Overlord.cmd -Action Restore
+.\EU-Overlord.cmd -Action Uninstall -FullClean -Force
 ```
 
 | 参数 | 可用值 |
 |------|--------|
-| `-Action` | `Apply` / `Restore` / `Status` / `Uninstall`（`Reapply` 供计划任务使用） |
+| `-Action` | `Menu`（默认）/ `Apply` / `Restore` / `Status` / `Uninstall`（`Reapply` 供计划任务使用） |
 | `-Mode` | `Gentle`（默认）/ `Hardcore` |
 | `-Region` | `Ireland`（默认）/ `Germany` / `France` / `Netherlands` / `Spain` / `Italy` / `Sweden` / `Poland` / `Finland` / `Austria` |
-| `-Language` | `auto`（默认）/ `zh-TW` / `zh-CN` / `en` |
+| `-Language` | `auto`（默认，按你在 Windows 语言设置中排第一的语言）/ `zh-TW` / `zh-CN` / `en` |
 | `-FullClean` | 配合 `Uninstall`：一并删除备份和日志 |
 | `-Force` | 跳过彻底模式和完全清除的确认提问 |
+</details>
 
-### 从旧版（One-Click EU Grandpa）升级
+<details>
+<summary><b>从旧版（One-Click EU Grandpa）升级</b></summary>
 
-直接运行一次新版的“应用”即可。工具会自动把 `C:\ProgramData\OneClickEUGrandpa\` 搬到新位置、保留原来的备份，并替换旧的计划任务。
-
----
-
-## 风险与注意事项
-
-- 这**不是** Microsoft 支持的配置，属于对你自己电脑的区域／功能自定义。请自行承担风险。
-- 建议第一次先用**温和模式**。彻底模式会改写系统文件（已备份、可恢复）。
-- 有反馈指出部分版本（如 25H2）的累积更新会频繁还原策略文件——这正是本工具安装持久化计划任务的原因。
-- 如果 `DeviceRegion` 由公司 MDM／域策略管理，可能需要在安全模式下操作，或交给管理员处理。
-- 微软以分批 A/B 方式推送功能，切换到 EEA 也不保证每一项立即出现。
-- 本工具不收集、不上传任何数据；所有操作都记录在 `C:\ProgramData\OneClickEUOverlord\logs\euoverlord.log`（英文，方便反馈问题）。
+直接用新版选 1～4 任一项即可。工具会把 `C:\ProgramData\OneClickEUGrandpa\` 移到新位置、保留原来的备份，并替换旧的计划任务。
+</details>
 
 ## 更多文档
 
-- [策略对照表](docs/zh-CN/FEATURES.md) — 84 条策略的全球默认与 EEA 状态
-- [工作原理](docs/zh-CN/HOW-IT-WORKS.md) — 区域判断、两种模式、UCPD、持久化、文件位置
-- [发布流程](docs/zh-CN/RELEASING.md) — 给维护者
-- [更新日志](CHANGELOG.md) · [安全性与免责声明](SECURITY.md)
+[策略对照表](docs/zh-CN/FEATURES.md) · [工作原理](docs/zh-CN/HOW-IT-WORKS.md) · [发布流程](docs/zh-CN/RELEASING.md) · [更新日志](CHANGELOG.md) · [安全性与免责声明](SECURITY.md)
 
-## 开发与测试
+开发者：`powershell -NoProfile -ExecutionPolicy Bypass -File tests\Test-Engine.ps1` 运行测试（无需管理员权限、不会改动系统）。
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File tests\Test-Engine.ps1
-```
-
-测试不需要管理员权限，也不会改动系统：所有路径都指向临时沙盒。GitHub Actions 会在每次推送时在 Windows 上运行。
-
-## 许可证
-
-[MIT](LICENSE)，不提供任何担保。
+许可证：[MIT](LICENSE)，不提供任何担保。
