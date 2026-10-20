@@ -1,99 +1,96 @@
-**繁體中文** · [简体中文](#简体中文) · [English](#english)
+# Security
 
-# 安全性與免責聲明
+## Reporting a problem
 
-## 免責聲明
+Open a [security advisory](https://github.com/PZW152/one-click-eu-lord/security/advisories/new)
+on this repository, or a normal issue if the problem is not sensitive. There is no
+guaranteed response time: this is a personal open-source project.
 
-- 本專案對 Windows 進行**非官方、非 Microsoft 支援**的區域與功能自訂。
-- 使用本工具代表你了解並接受相關風險；作者不對任何資料遺失、系統不穩或保固問題負責。
-- 本工具**只應用於你本人擁有或獲授權管理的電腦**。
+## What this tool is allowed to do, and what it refuses to
 
-## 本工具會動到什麼
+It needs administrator rights, so it is worth being precise about the boundaries.
 
-| 資源 | 用途 | 可還原 |
-|------|------|--------|
-| `HKLM\...\Control Panel\DeviceRegion`（登錄 DWORD） | 切換 Windows 認定的裝置地區 | ✅ 還原為原值 |
-| `C:\Windows\System32\IntegratedServicesRegionPolicySet.json` | 只有徹底模式會改；強制 EEA 策略 | ✅ 從備份還原 |
-| 排程工作 `OneClickEUOverlord-Persist` | 每次登入／每天重新套用 | ✅ 還原時移除 |
-| `C:\ProgramData\OneClickEUOverlord\` | 備份、狀態、日誌 | ✅ `-FullClean` 刪除 |
-| `%TEMP%\EUOverlord-<亂數>.ps1` | `EU-Overlord.cmd` 執行時暫時解出的引擎 | ✅ 執行結束即刪除 |
+### It changes exactly four things
 
-本工具**不會**蒐集或上傳任何資料、安裝背景服務、永久停用 Windows 安全驅動（UCPD），或修改與地區無關的系統設定。
+| What | Where |
+|---|---|
+| The region policy set | `C:\Windows\System32\IntegratedServicesRegionPolicySet.json` |
+| The cached device region | `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Control Panel\DeviceRegion` |
+| One scheduled task | `OneClickEULord-Persist` |
+| Its own data folder | `C:\ProgramData\OneClickEULord\` |
 
-## 關於 UCPD
+Everything it creates is in that one folder, so uninstalling never has to guess at
+filenames or scan for leftovers.
 
-Windows 11 的 UserChoice Protection Driver（UCPD）以映像名稱比對，阻擋 `reg.exe`、`powershell.exe` 等工具寫入 `DeviceRegion`。本工具先嘗試正常寫入並讀回驗證；若被攔截，才用暫存目錄裡一份**改名的 `reg.exe` 複本**寫入這**一個值**，然後立刻刪除複本。整台機器的 UCPD **不會**被停用。若你不想用這個方法，可以在 Windows 初始設定（OOBE）時直接選擇 EEA 國家。
+### It does not weaken the system
 
-## 回報問題
+- **No ownership or permission changes.** v1 ran `takeown` and `icacls` on the policy
+  file, which permanently changed a Windows system file's owner and DACL and could not
+  be undone (`icacls /setowner "NT SERVICE\TrustedInstaller"` fails with 1307). v2
+  writes the file in place — the shipped DACL already grants Administrators full
+  control — and if a write is ever denied it enables `SeRestorePrivilege` for a single
+  handle instead, modifying nothing.
+- **UCPD stays loaded and enabled.** The UserChoice Protection Driver is never
+  disabled, unloaded or patched. If it blocks the one `DeviceRegion` write, the
+  fallback copies `reg.exe` to a temporary name, writes that one value, and deletes the
+  copy. Nothing else is affected.
+- **No service, no driver, no resident process.** The scheduled task runs, re-applies
+  and exits.
+- **No Defender exclusions, no policy bypasses, no tampering with security settings.**
 
-請透過 GitHub Issues 回報，可附上 `C:\ProgramData\OneClickEUOverlord\logs\euoverlord.log`（英文、不含個資）。請勿貼上密碼、金鑰或個人資料。
+### It does not delete software by hand
 
----
+Apps are removed only through `Remove-AppxPackage` or the uninstall command the app
+registered itself, run as written. No file deletion, no WinSxS, no force-removal of
+something without an uninstaller, and no fallback to deleting files when an
+uninstaller fails. An app with no legitimate route is shown as not removable.
 
-<a id="简体中文"></a>
+Uninstalling is not available from the command line, so an unattended run can never
+remove software. Each app is confirmed separately in the window.
 
-# 安全性与免责声明
+### It does not work around management policy
 
-## 免责声明
+If a domain or MDM policy overrides what the tool writes, verification reports that
+and the tool stops. There is deliberately no bypass.
 
-- 本项目对 Windows 进行**非官方、非 Microsoft 支持**的区域与功能自定义。
-- 使用本工具即表示你了解并接受相关风险；作者不对任何数据丢失、系统不稳定或保修问题负责。
-- 本工具**只应用于你本人拥有或获授权管理的电脑**。
+## Privacy
 
-## 本工具会改动什么
+- No telemetry, no analytics, no crash reporting, no identifiers.
+- The only network request is **Check for updates**, which reads the latest release
+  tag from the GitHub API and sends nothing but a `User-Agent`. It happens when you
+  press the button and never on launch.
+- The log is local, English, and records what was changed — never credentials, tokens
+  or personal data.
 
-| 资源 | 用途 | 可恢复 |
-|------|------|--------|
-| `HKLM\...\Control Panel\DeviceRegion`（注册表 DWORD） | 切换 Windows 认定的设备区域 | ✅ 恢复为原值 |
-| `C:\Windows\System32\IntegratedServicesRegionPolicySet.json` | 只有彻底模式会改；强制 EEA 策略 | ✅ 从备份恢复 |
-| 计划任务 `OneClickEUOverlord-Persist` | 每次登录／每天重新应用 | ✅ 恢复时删除 |
-| `C:\ProgramData\OneClickEUOverlord\` | 备份、状态、日志 | ✅ `-FullClean` 删除 |
-| `%TEMP%\EUOverlord-<随机数>.ps1` | `EU-Overlord.cmd` 运行时临时解出的引擎 | ✅ 运行结束即删除 |
+## Supply chain
 
-本工具**不会**收集或上传任何数据、安装后台服务、永久禁用 Windows 安全驱动（UCPD），或修改与区域无关的系统设置。
+- One file, no dependencies. Built with the C# compiler inside Windows; no NuGet
+  packages, no vendored code.
+- Every GitHub Action is pinned to a full commit SHA, verified against the GitHub API
+  rather than copied from memory.
+- Workflows default to `permissions: contents: read`; only the publishing job gets
+  `contents: write`.
+- Tag names reach workflows through the environment and are regex-validated before use,
+  never interpolated into a script body.
+- Each release's notes carry the asset's SHA-256 so a download can be checked:
 
-## 关于 UCPD
+  ```powershell
+  Get-FileHash .\EULord.exe -Algorithm SHA256
+  ```
 
-Windows 11 的 UserChoice Protection Driver（UCPD）按映像名称匹配，阻止 `reg.exe`、`powershell.exe` 等工具写入 `DeviceRegion`。本工具先尝试正常写入并读回验证；若被拦截，才用临时目录中一份**重命名的 `reg.exe` 副本**写入这**一个值**，然后立即删除副本。整台电脑的 UCPD **不会**被禁用。如果你不想用这个方法，可以在 Windows 初始设置（OOBE）时直接选择 EEA 国家。
+## Risks you should weigh before using it
 
-## 反馈问题
+Honest list, because the tool asks for administrator rights:
 
-请通过 GitHub Issues 反馈，可附上 `C:\ProgramData\OneClickEUOverlord\logs\euoverlord.log`（英文、不含个人信息）。请勿粘贴密码、密钥或个人数据。
-
----
-
-<a id="english"></a>
-
-# Security & disclaimer
-
-## Disclaimer
-
-- This project performs an **unofficial, not Microsoft-supported** region and feature customization of Windows.
-- By using it you accept the risks; the authors are not liable for data loss, instability or warranty issues.
-- Use it **only on machines you own or are authorized to administer**.
-
-## What the tool touches
-
-| Resource | Purpose | Reversible |
-|----------|---------|------------|
-| `HKLM\...\Control Panel\DeviceRegion` (registry DWORD) | Switches the device region Windows uses | ✅ restored to the original value |
-| `C:\Windows\System32\IntegratedServicesRegionPolicySet.json` | Hardcore mode only; forces the EEA policies | ✅ restored from backup |
-| Scheduled task `OneClickEUOverlord-Persist` | Re-applies at logon and daily | ✅ removed on Restore |
-| `C:\ProgramData\OneClickEUOverlord\` | Backups, state, logs | ✅ deleted with `-FullClean` |
-| `%TEMP%\EUOverlord-<random>.ps1` | The engine, unpacked while `EU-Overlord.cmd` runs | ✅ deleted when it finishes |
-
-The tool does **not** collect or upload any data, install background services, permanently disable a Windows security
-driver (UCPD), or change system settings unrelated to the region.
-
-## About UCPD
-
-Windows 11's UserChoice Protection Driver (UCPD) matches process image names and blocks tools such as `reg.exe` and
-`powershell.exe` from writing `DeviceRegion`. The tool first writes normally and reads the value back. Only if that was
-blocked does it write this **one value** with a **renamed copy of `reg.exe`** in a temp folder, deleting the copy right
-after. UCPD stays enabled for the rest of the system. If you prefer not to use this, pick an EEA country during Windows
-setup (OOBE) instead.
-
-## Reporting issues
-
-Please use GitHub Issues. You can attach `C:\ProgramData\OneClickEUOverlord\logs\euoverlord.log` (English, no personal
-data). Never paste passwords, keys or personal data.
+1. **It edits a Windows system file.** That file is backed up first, twice, and
+   restore puts it back — but Microsoft does not support editing it, and a future
+   Windows version could change its format. The tool refuses to write rather than
+   guess if it cannot parse what it finds.
+2. **It tells Windows your device region is Ireland.** Region-dependent behaviour
+   elsewhere in Windows and in Microsoft apps may change accordingly. Restore puts the
+   old value back, or removes the value entirely if there was not one before.
+3. **The unsigned executable will warn you.** There is no code-signing certificate, so
+   SmartScreen will flag it. Build it yourself from source if that matters — it is one
+   command and needs nothing installed.
+4. **Uninstalling Microsoft Store is hard to undo.** It has no one-click reinstall;
+   the tool says so next to the checkbox rather than after the fact.

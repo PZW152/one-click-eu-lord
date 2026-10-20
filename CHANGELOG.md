@@ -4,6 +4,88 @@
 Each version lists Traditional Chinese, Simplified Chinese and English. The release workflow uses the matching section
 as the release notes.
 
+## v2.0.0 — 2026-10-21
+
+完整重寫。v1 的 PowerShell 腳本全部移除，換成單一的 `EULord.exe`。
+Complete rewrite. The v1 PowerShell scripts are gone, replaced by a single `EULord.exe`.
+
+**繁體中文**
+
+- **修正 v1 的核心錯誤。** v1 把「超集」實作成「完全照抄歐盟版」，於是連歐盟版**拿掉**的功能也一起收下 —— 朗讀程式的腳本擴充、Xbox 全螢幕體驗、時鐘與行事曆的快速動作等等。README 當時還寫了「工具不會替你關掉任何功能」，那是錯的。現在 68 條差異逐條分類成 **好處 40／損失 7／見仁見智 21**：好處採用歐盟版，損失**保留原本的**，見仁見智預設不動、由你勾選。
+- **修正說明文件的反向錯誤。** 舊的 `docs/FEATURES.md` 把「網頁搜尋需要 Edge」那一條寫反了。新的 [docs/POLICIES.md](docs/POLICIES.md) 由 `tools/New-PolicyTable.ps1` 從程式碼產生，不可能再跟實作講不一樣的話。
+- **單一 exe，圖形介面。** 約 165 KB、零依賴、不需安裝任何 runtime（.NET Framework 4.8 是 Windows 11 內建的）。瑞士國際主義設計風格；單頁加展開區，進階設定不會擋到第一次使用的人。
+- **68 條全部可逐條覆寫**，進階頁列出全部，可強制「歐盟版／原本的／自動」。
+- **代勞卸載 App**：Edge、Store、Copilot、手機連結、小工具、Xbox、Teams、OneDrive 等。一律走 App 自己註冊的卸載程式，**絕不手動刪檔**；逐一確認；已卸載的有「重新安裝」。命令列刻意不提供這個功能。
+- **套用後實際驗證**並給診斷建議，分成「已確定」與「觀察到的」兩層，量不到的就說無法判斷。
+- **更新後立即補回**：排程多了 Windows Update 事件 19 的觸發，不必等到下次登入。
+- **不再動系統檔案的權限。** v1 的 `takeown` + `icacls` 其實沒必要（原廠 DACL 已給 Administrators 完全控制），而且不可逆（擁有權要不回 TrustedInstaller，錯誤 1307）。v2 就地寫入，必要時才用 `SeRestorePrivilege`，兩條路都不留痕跡。
+- **還原更正確**：記錄 `DeviceRegion` 原本是否存在，還原時該刪就刪，而不是寫回一個猜的值。
+- 三語自動偵測、可手動切換；日誌一律英文、公曆時間。
+- 280 項測試，不需系統管理員、不碰系統；CI 另外檢查編碼、版號一致性，以及分類表對 runner 上那個 Windows 版本的涵蓋率。
+
+**简体中文**
+
+- **修正 v1 的核心错误。** v1 把「超集」实现成「完全照抄欧盟版」，于是连欧盟版**拿掉**的功能也一起收下 —— 讲述人的脚本扩展、Xbox 全屏体验、时钟与日历的快速操作等等。README 当时还写了「工具不会替你关掉任何功能」，那是错的。现在 68 条差异逐条分类成 **好处 40／损失 7／见仁见智 21**：好处采用欧盟版，损失**保留原本的**，见仁见智默认不动、由你勾选。
+- **修正文档的反向错误。** 旧的 `docs/FEATURES.md` 把「网页搜索需要 Edge」那一条写反了。新的 [docs/POLICIES.md](docs/POLICIES.md) 由 `tools/New-PolicyTable.ps1` 从代码生成，不可能再跟实现讲不一样的话。
+- **单一 exe，图形界面。** 约 165 KB、零依赖、不需安装任何 runtime（.NET Framework 4.8 是 Windows 11 内置的）。瑞士国际主义设计风格；单页加展开区，高级设置不会挡到第一次使用的人。
+- **68 条全部可逐条覆写**，高级页列出全部，可强制「欧盟版／原本的／自动」。
+- **帮忙卸载 App**：Edge、Store、Copilot、手机连接、小组件、Xbox、Teams、OneDrive 等。一律走 App 自己注册的卸载程序，**绝不手动删文件**；逐一确认；已卸载的有「重新安装」。命令行刻意不提供这个功能。
+- **应用后实际验证**并给诊断建议，分成「已确定」与「观察到的」两层，量不到的就说无法判断。
+- **更新后立即补回**：计划任务多了 Windows Update 事件 19 的触发，不必等到下次登录。
+- **不再动系统文件的权限。** v1 的 `takeown` + `icacls` 其实没必要（出厂 DACL 已给 Administrators 完全控制），而且不可逆（所有权要不回 TrustedInstaller，错误 1307）。v2 就地写入，必要时才用 `SeRestorePrivilege`，两条路都不留痕迹。
+- **还原更正确**：记录 `DeviceRegion` 原本是否存在，还原时该删就删，而不是写回一个猜的值。
+- 三语自动检测、可手动切换；日志一律英文、公历时间。
+- 280 项测试，不需管理员、不碰系统；CI 另外检查编码、版本号一致性，以及分类表对 runner 上那个 Windows 版本的覆盖率。
+
+**English**
+
+- **Fixes the mistake at the centre of v1.** v1 implemented "superset" as *copying the
+  EEA set verbatim*, which silently accepted the features the EU build **removes** —
+  Narrator's scripting extensions, the Xbox full-screen experience, the Clock and
+  Calendar quick actions and more. Its README claimed the tool never turned a feature
+  off, which was false. All 68 differences are now classified individually as
+  **40 gains / 7 losses / 21 matters of taste**: gains take the EU state, losses
+  **keep Windows' own**, and matters of taste stay off until you tick them.
+- **Fixes a documentation row that was stated backwards.** The old `docs/FEATURES.md`
+  had "Edge is required for web search" the wrong way round. The new
+  [docs/POLICIES.md](docs/POLICIES.md) is generated from the code by
+  `tools/New-PolicyTable.ps1`, so it cannot disagree with the implementation again.
+- **One exe with a GUI.** About 165 KB, no dependencies, no runtime to install
+  (.NET Framework 4.8 ships inside Windows 11). Swiss International Typographic
+  Style; a single page with disclosure, so the advanced settings never block a
+  first-time user.
+- **All 68 policies are individually overridable** — force EU, global or automatic
+  from the advanced table.
+- **Uninstalling Microsoft's apps**: Edge, Store, Copilot, Phone Link, Widgets, Xbox,
+  Teams, OneDrive and more. Always through the app's own registered uninstaller,
+  **never by deleting files**; confirmed one at a time; with a Reinstall link
+  afterwards. Deliberately unavailable from the command line.
+- **Real verification after applying**, with diagnostics, split into *settled* and
+  *observed* so a slow Microsoft rollout is never reported as either success or
+  failure. Anything unmeasurable is reported as such.
+- **Re-applies right after an update** — the scheduled task now also triggers on
+  `Microsoft-Windows-WindowsUpdateClient` event 19, rather than waiting for the next
+  sign-in.
+- **No longer changes system file permissions.** v1's `takeown` + `icacls` was both
+  unnecessary (the shipped DACL already grants Administrators full control) and
+  irreversible (ownership cannot be returned to TrustedInstaller, error 1307). v2
+  writes in place and falls back to `SeRestorePrivilege` only if denied, leaving no
+  trace either way.
+- **More correct restore**: it records whether `DeviceRegion` existed at all, and
+  deletes the value on restore if it did not, instead of writing back a guess.
+- Three languages, auto-detected and switchable; the log stays English with Gregorian
+  dates.
+- 280 tests that need no administrator rights and touch nothing on the machine. CI
+  additionally checks encodings, version consistency, and the catalog's coverage of
+  the Windows build on the runner.
+
+### Upgrading from v1
+
+Nothing to do: run the new exe and press the button. It adopts the original region
+v1 recorded so restore still works, and removes the v1.0–v1.2 scheduled tasks, which
+would otherwise keep re-applying v1's behaviour. The old `C:\ProgramData\OneClickEUGrandpa\`
+and `C:\ProgramData\OneClickEUOverlord\` folders are left alone rather than deleted.
+
 ## v1.2.0 — 2026-10-20
 
 **繁體中文**

@@ -1,113 +1,137 @@
+# One-Click EU Lord
+
 [繁體中文](README.md) · [简体中文](README.zh-CN.md) · **English**
 
-# One-Click EU Overlord
+Gives an ordinary Windows 11 install the treatment Ireland gets under the EU and the EEA — **every gain, none of the losses** — and keeps it that way after Windows updates.
 
-Give your Windows 11 the treatment only EU users ("EU overlords") get: **uninstall Edge, turn off Bing in Search, and
-see far fewer ads and nags**. Windows updates won't quietly undo it.
-
-## Three steps
-
-1. **[⬇ Download EU-Overlord.cmd](https://github.com/PZW152/one-click-eu-overlord/releases/latest/download/EU-Overlord.cmd)**
-2. **Double-click** it and click **Yes** when Windows asks for permission
-3. **Press Enter**, then restart
-
-Want to go back? Double-click it again and type **3**.
-
-> **Seeing a warning?** The file has no paid code-signing certificate, so your browser and Windows will be cautious:
-> - Browser says the file may be harmful → choose **Keep** (in Edge, click "…" first)
-> - Blue "Windows protected your PC" → **More info** → **Run anyway**
-> - "Open File - Security Warning" → **Run**
->
-> It is a plain text file anyone can open in Notepad; the source is [src/EUOverlord.ps1](src/EUOverlord.ps1).
+![The window](docs/images/screenshot-en.png)
 
 ---
 
-## What you get
+## Three steps
 
-- ✅ **Uninstall Microsoft Edge**, without other apps nagging you to reinstall it
-- ✅ **Uninstall the Microsoft Store** and some built-in apps
-- ✅ **Turn off Bing web results** in Windows Search
-- ✅ **Widgets**: turn off the news and ads feed
-- ✅ A new default browser takes over **every link type**
-- ✅ **Far fewer promotions**: full-screen upsells and Edge campaigns go away
+1. Download **`EULord.exe`** from [Releases](https://github.com/PZW152/one-click-eu-lord/releases/latest)
+2. Double-click it and allow administrator rights
+3. Press the red **Apply superset** button
 
-The tool only unlocks these *choices*; it **doesn't** remove anything for you. Whether you actually uninstall Edge is
-your call.
+That is the whole thing. Nothing to install, nothing to configure, no instructions to read.
 
-<details>
-<summary><b>What's the difference between menu options 1, 2, 3 and 4?</b></summary>
+---
 
-| Option | What it does | For |
-|--------|--------------|-----|
-| **1 Become an EU overlord** (recommended) | Sets the device region Windows believes in to Ireland, so Windows unlocks the EU features itself | Everyone |
-| **2 Hardcore** | Also rewrites the system's region policy file, so it works even if the region is changed back | People who still miss features after 1 |
-| **3 Undo** | Restores the region and policy file and removes the auto-protection (backups kept) | Going back |
-| **4 Remove completely** | Undo, then delete everything the tool left on the PC | Leaving no trace |
+## Why not just set the region to Ireland?
 
-Options 1 and 2 install an auto-protection task that checks at every logon and once a day, and puts the settings back
-if an update changed them.
-</details>
+Because the EU build of Windows does not only *add* things. It also *removes* some.
 
-<details>
-<summary><b>What exactly does it change? Is it safe?</b></summary>
+Switching your region — the trick you will find everywhere — does unlock the EU benefits, but it also costs you Narrator's scripting extensions, the Xbox full-screen experience, the Clock and Calendar quick actions, and a few more. Those are switched off in the EU build.
 
-- **One registry value**: `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Control Panel\DeviceRegion` (the country
-  Windows thinks you are in).
-- **One system file** (option 2 only): `C:\Windows\System32\IntegratedServicesRegionPolicySet.json`, 84 region
-  feature switches.
-- **One scheduled task**: `OneClickEUOverlord-Persist`.
-- **One folder**: `C:\ProgramData\OneClickEUOverlord\`, holding backups of the originals, state and logs.
+So this tool classifies all **68** policies that differ between the EU and the rest of the world, one at a time:
 
-Everything is backed up first, and options 3 and 4 restore it completely. Nothing is collected or uploaded.
-Windows 11's UCPD protection blocks writes to the region value; the tool works around it for **that one value only**
-and leaves the protection on for everything else.
+| Class | Count | What happens |
+|---|---|---|
+| **Gain** | 40 | Takes the EU state |
+| **Loss** | 7 | **Keeps Windows' own**, refuses the EU state |
+| **Taste** | 21 | Keeps Windows' own unless you tick it |
 
-This is **not** a Microsoft-supported configuration; use at your own risk. Details in [How it works](docs/en/HOW-IT-WORKS.md)
-and [Security & disclaimer](SECURITY.md).
-</details>
+That is what "superset" means here: everything the EU gets, and everything the EU gave up.
 
-<details>
-<summary><b>I chose 1 and restarted, but still can't uninstall Edge</b></summary>
+The full row-by-row table is in [docs/POLICIES.md](docs/POLICIES.md).
 
-- Microsoft rolls features out in stages; some PCs need a few days or the next update.
-- Double-click again and choose **2 Hardcore**.
-- On a work PC managed by IT (MDM / domain), company policy may override the setting; ask your IT team.
-</details>
+> Plainly stated: **out of the box this tool turns no existing feature off.** Only two things ever switch something off, and you do both of them yourself — the boxes you tick under "Matters of taste", and the apps you choose to uninstall.
 
-<details>
-<summary><b>Command line (advanced)</b></summary>
+---
 
-`EU-Overlord.cmd` and `src\EUOverlord.ps1` take the same parameters; with none, you get the menu. Run as Administrator:
+## What it changes on your machine
 
-```powershell
-.\EU-Overlord.cmd -Action Apply -Mode Hardcore -Region Germany
-.\EU-Overlord.cmd -Action Status -Language en
-.\EU-Overlord.cmd -Action Restore
-.\EU-Overlord.cmd -Action Uninstall -FullClean -Force
+| What | How |
+|---|---|
+| `C:\Windows\System32\IntegratedServicesRegionPolicySet.json` | Rewritten to the table above with the region conditions removed, after a backup |
+| `HKLM\...\Control Panel\DeviceRegion` | Set to Ireland (GeoID 68) |
+| Scheduled task `OneClickEULord-Persist` | Re-applies at logon, once a day, and **after a Windows update finishes** |
+| `C:\ProgramData\OneClickEULord\` | Its own copy, settings, backups and log — everything in one folder |
+
+Nothing else is touched. No service, no driver, nothing resident, and no network access unless you press "Check for updates".
+
+---
+
+## Undoing it
+
+Open the tool and expand **Restore and remove**:
+
+- **Restore** — puts the backed-up policy file back, returns the region to its old value, removes the scheduled task. Backups are kept.
+- **Remove everything** — restores first, then deletes `C:\ProgramData\OneClickEULord\` entirely. Asks again before it does.
+
+The `EULord.exe` you downloaded can be moved or deleted freely: the tool installs its own copy for the scheduled task to run.
+
+---
+
+## About uninstalling apps
+
+The **Uninstall apps for me** section can remove Edge, Microsoft Store, Copilot, Phone Link, Widgets, Xbox, Teams, OneDrive and other Microsoft apps.
+
+It **always runs the app's own registered uninstaller** — `Remove-AppxPackage` for Store apps, and the uninstall command Edge and OneDrive wrote into the registry themselves. It never deletes files by hand, never touches WinSxS, and never force-removes something that has no uninstaller. An app with no legitimate removal route is shown as not removable, with the reason. If an uninstaller fails, the exit code is reported as-is and **nothing falls back to deleting files**.
+
+Every app is confirmed separately, one at a time. Anything you removed gets a **Reinstall** button pointing at the official source.
+
+---
+
+## Command line
+
+Double-clicking opens the window. Any argument runs without one.
+
+```
+EULord.exe --apply                    apply the superset
+EULord.exe --reapply                  apply only if the machine has drifted (what the task runs)
+EULord.exe --restore                  undo
+EULord.exe --purge --yes              undo, then delete the data folder
+EULord.exe --status [--json]          report only, change nothing
+
+EULord.exe --region IE                another EEA country, ISO code or GeoID
+EULord.exe --choice Copilot,OfficeRecent    turn on these matters of taste
+EULord.exe --override NarratorScripts=eea   force one policy (eea / global / auto)
 ```
 
-| Parameter | Values |
-|-----------|--------|
-| `-Action` | `Menu` (default) / `Apply` / `Restore` / `Status` / `Uninstall` (`Reapply` is used by the scheduled task) |
-| `-Mode` | `Gentle` (default) / `Hardcore` |
-| `-Region` | `Ireland` (default) / `Germany` / `France` / `Netherlands` / `Spain` / `Italy` / `Sweden` / `Poland` / `Finland` / `Austria` |
-| `-Language` | `auto` (default: the first language in your Windows language settings) / `zh-TW` / `zh-CN` / `en` |
-| `-FullClean` | With `Uninstall`: also delete backups and logs |
-| `-Force` | Skip the confirmation prompts for Hardcore and full clean |
-</details>
+Exit codes: `0` done, `1` failed, `2` bad usage, `3` needs administrator, `4` partly done.
 
-<details>
-<summary><b>Upgrading from One-Click EU Grandpa</b></summary>
+Uninstalling apps is deliberately **not** available here. Removing software should need a person confirming each one, so it can never run unattended.
 
-Pick any of options 1-4 in the new version. It moves `C:\ProgramData\OneClickEUGrandpa\` to the new location, keeps
-your original backups, and replaces the old scheduled task.
-</details>
+---
 
-## More documentation
+## Applied it but nothing changed?
 
-[Policy reference](docs/en/FEATURES.md) · [How it works](docs/en/HOW-IT-WORKS.md) · [Releasing](docs/en/RELEASING.md) · [Changelog](CHANGELOG.md) · [Security & disclaimer](SECURITY.md)
+Microsoft ships these features in waves, so writing a setting is not the same as the feature appearing. After applying, the tool **reads everything back** and reports each check as *In effect*, *Not yet in effect* or *Cannot tell*, with the likely reason — not restarted yet, the rollout has not reached this machine, or a domain/MDM policy is overriding it.
 
-Developers: `powershell -NoProfile -ExecutionPolicy Bypass -File tests\Test-Engine.ps1` runs the tests (no
-Administrator rights needed, nothing on the system is touched).
+The log lives at `C:\ProgramData\OneClickEULord\logs\eulord.log` and is **always English with Gregorian dates**, so it can be pasted straight into an issue.
 
-License: [MIT](LICENSE). No warranty.
+---
+
+## Building it yourself
+
+No SDK, no NuGet, no Visual Studio. .NET Framework 4.8 ships inside Windows 11.
+
+```powershell
+.\tools\Build.ps1     # produces dist\EULord.exe, about 165 KB
+.\tools\Test.ps1      # 280 tests, no admin rights, touches nothing on the machine
+```
+
+How it works is in [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md); the design decisions are recorded in [docs/SPEC.md](docs/SPEC.md).
+
+---
+
+## Documentation
+
+| Document | What it covers |
+|---|---|
+| [docs/POLICIES.md](docs/POLICIES.md) | All 68 policies, generated from the code, in three languages |
+| [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md) | How Windows decides EU treatment, and where this tool steps in |
+| [docs/SPEC.md](docs/SPEC.md) | The v2 specification and decision record (Chinese) |
+| [docs/RELEASING.md](docs/RELEASING.md) | Release process, for maintainers |
+| [SECURITY.md](SECURITY.md) | Security considerations and how to report a problem |
+| [CHANGELOG.md](CHANGELOG.md) | Version history |
+
+> User-facing documents come in three languages. Maintainer documents exist once, so translations cannot drift apart.
+
+---
+
+## Licence
+
+[MIT](LICENSE). An independent open-source project, not affiliated with Microsoft.

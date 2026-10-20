@@ -1,104 +1,137 @@
+# 一键转生欧爷
+
 [繁體中文](README.md) · **简体中文** · [English](README.en.md)
 
-# 一键转生欧盟爷
+把一台普通安装的 Windows 11，变成享有爱尔兰（欧盟＋EEA）待遇的机器 —— **只收好处，不收损失**，而且更新之后也不会被刷回去。
 
-让你的 Windows 11 享有欧盟用户（欧盟大老爷）才有的待遇：**可以卸载 Edge、关掉 Bing 搜索、少看一堆广告推销**。之后系统更新也不会把它改回去。
-
-## 三步就好
-
-1. **[⬇ 下载 EU-Overlord.cmd](https://github.com/PZW152/one-click-eu-overlord/releases/latest/download/EU-Overlord.cmd)**
-2. **双击**它，Windows 问是否允许时点“**是**”
-3. **直接按 Enter**，然后重启
-
-想变回原样？再双击一次，输入 **3**。
-
-> **弹出警告怎么办？** 这个文件没有花钱买数字签名，所以浏览器和 Windows 会提醒你：
-> - 浏览器说文件可能有害 → 选“**保留**”（Edge 要先点“…”）
-> - 蓝色的“Windows 已保护你的电脑”→ 点“**更多信息**”→“**仍要运行**”
-> - “打开文件 - 安全警告”→ 点“**运行**”
->
-> 它是纯文本文件，任何人都能用记事本打开检查；源代码就在 [src/EUOverlord.ps1](src/EUOverlord.ps1)。
+![界面](docs/images/screenshot-zh-Hans.png)
 
 ---
 
-## 转生后有什么好处
+## 三步骤
 
-- ✅ 可以**卸载 Microsoft Edge**，其他程序也不会一直让你装回来
-- ✅ 可以**卸载 Microsoft Store** 和部分内置应用
-- ✅ 可以**关掉 Windows 搜索中的 Bing 网页结果**
-- ✅ **小组件**可以关掉新闻和广告信息流
-- ✅ 换成别的浏览器当默认时，**所有链接类型一起换**
-- ✅ **少很多推销**：全屏广告页、硬塞 Edge 的活动都会消失
+1. 到 [Releases](https://github.com/PZW152/one-click-eu-lord/releases/latest) 下载 **`EULord.exe`**
+2. 双击它，按「是」允许管理员权限
+3. 按红色那颗 **应用超集**
 
-工具只是把这些“选择权”打开，**不会**替你删除任何东西——要不要真的卸载 Edge，由你决定。
+就这样。不用安装、不用设置、不用看说明。
 
-<details>
-<summary><b>菜单里的 1、2、3、4 有什么区别？</b></summary>
+---
 
-| 选项 | 做什么 | 适合谁 |
-|------|--------|--------|
-| **1 一键转生**（推荐） | 只把 Windows 认定的“设备区域”改成爱尔兰，让 Windows 自己开放欧盟功能 | 所有人 |
-| **2 彻底转生** | 另外改写系统的区域策略文件，即使区域被改回去也照样有效 | 选 1 之后功能还是没出现的人 |
-| **3 恢复** | 把区域和策略文件恢复原状、移除自动保护（保留备份） | 想变回去的人 |
-| **4 完全移除** | 恢复，并删除本工具留在电脑上的所有数据 | 不想留任何痕迹的人 |
+## 为什么不是「直接改成欧盟」就好？
 
-1 和 2 都会安装一个“自动保护”计划任务：每次登录和每天检查一次，系统更新把设置改回去时自动补回。
-</details>
+欧盟版的 Windows 不只是**多**了东西，它也**拿掉**了一些东西。
 
-<details>
-<summary><b>它到底改了我电脑的什么？安全吗？</b></summary>
+把区域改成爱尔兰（网上常见的做法）会让你得到欧盟的好处，但同时会失去讲述人的脚本扩展、Xbox 全屏体验、时钟与日历的快速操作等等 —— 这些功能在欧盟版里是被关掉的。
 
-- **一个注册表值**：`HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Control Panel\DeviceRegion`（Windows 判断你在哪个国家）。
-- **一个系统文件**（只有选 2 才改）：`C:\Windows\System32\IntegratedServicesRegionPolicySet.json`，84 条区域功能开关。
-- **一个计划任务**：`OneClickEUOverlord-Persist`。
-- **一个文件夹**：`C:\ProgramData\OneClickEUOverlord\`，存放原始文件备份、状态和日志。
+所以这个工具把 **68 条**欧盟与全球不同的策略逐条分类：
 
-动手前都会先备份，选 3 或 4 就能完整恢复。不收集、不上传任何数据。
-Windows 11 的 UCPD 防护会拦截修改区域的写入，工具只针对这**一个值**绕过，不会关闭整台电脑的防护。
+| 分类 | 数量 | 处理方式 |
+|------|------|----------|
+| **好处** | 40 | 采用欧盟版 |
+| **损失** | 7 | **保留原本的**，不收欧盟版 |
+| **见仁见智** | 21 | 默认保留原本的，想要再自己勾 |
 
-这**不是**微软支持的配置，请自行承担风险。详细说明见[工作原理](docs/zh-CN/HOW-IT-WORKS.md)和[安全性与免责声明](SECURITY.md)。
-</details>
+这就是「超集」的意思：欧盟有的好处你全都有，欧盟没有的功能你也还留着。
 
-<details>
-<summary><b>选了 1，重启后还是不能卸载 Edge？</b></summary>
+完整的逐条对照在 [docs/POLICIES.md](docs/POLICIES.md)。
 
-- 微软会分批推送功能，有些电脑要等几天或下一次更新。
-- 可以再双击一次改选 **2 彻底转生**。
-- 公司电脑如果由 IT 管理（MDM／域），设置可能被公司策略覆盖，请联系 IT。
-</details>
+> 诚实地说：**默认状态下，这个工具不会关掉你现有的任何功能。** 会关掉东西的只有两种情况，而且都要你自己动手 —— 你在「见仁见智」里勾选的项目，以及你在「帮我卸载 App」里点的卸载。
 
-<details>
-<summary><b>命令行用法（进阶）</b></summary>
+---
 
-`EU-Overlord.cmd` 和 `src\EUOverlord.ps1` 接受相同参数；不带参数就是菜单。以管理员身份运行：
+## 它在你的机器上动了什么
 
-```powershell
-.\EU-Overlord.cmd -Action Apply -Mode Hardcore -Region Germany
-.\EU-Overlord.cmd -Action Status -Language zh-CN
-.\EU-Overlord.cmd -Action Restore
-.\EU-Overlord.cmd -Action Uninstall -FullClean -Force
+| 项目 | 内容 |
+|------|------|
+| `C:\Windows\System32\IntegratedServicesRegionPolicySet.json` | 改写成上表的结果，并移除区域条件（先备份） |
+| `HKLM\...\Control Panel\DeviceRegion` | 设成爱尔兰（GeoID 68） |
+| 计划任务 `OneClickEULord-Persist` | 登录时、每天、以及 **Windows 更新完成后**自动补回 |
+| `C:\ProgramData\OneClickEULord\` | 自己的副本、设置、备份、日志，全部集中在这一个文件夹 |
+
+除此之外不碰任何地方。不装服务、不装驱动、不常驻、平常不联网。
+
+---
+
+## 还原
+
+打开工具 → 展开「还原与移除」：
+
+- **还原**：策略文件换回备份、区域改回原值、移除计划任务。备份会留着。
+- **完全移除**：还原之后再删掉整个 `C:\ProgramData\OneClickEULord\`。需要再次确认。
+
+手上那个 `EULord.exe` 可以随便移动或删除 —— 工具会把自己复制一份到 ProgramData 给计划任务用。
+
+---
+
+## 关于卸载 App
+
+展开「帮我卸载 App」可以移除 Edge、Microsoft Store、Copilot、手机连接、小组件、Xbox、Teams、OneDrive 等微软自家 App。
+
+**一律调用 App 自己注册的卸载程序**（Store App 走 `Remove-AppxPackage`，Edge 与 OneDrive 走它们注册在系统里的卸载命令），绝不手动删文件、不动 WinSxS、不强制移除没有卸载程序的东西。找不到合法卸载途径的，就标示为不可卸并说明原因；卸载失败就原样报告退出码，**不会退回硬删**。
+
+每个 App 都要分别确认一次，不是一次确认全部。已卸载的项目会有「重新安装」按钮带你去官方页面。
+
+---
+
+## 命令行（高级、IT 批量部署）
+
+双击是图形界面；带参数就不开窗口。
+
+```
+EULord.exe --apply                    应用超集
+EULord.exe --reapply                  有跑掉才补回（计划任务跑的就是这个）
+EULord.exe --restore                  还原
+EULord.exe --purge --yes              还原并删掉数据文件夹
+EULord.exe --status [--json]          只报告，不改任何东西
+
+EULord.exe --region IE                改用别的 EEA 国家（ISO 码或 GeoID）
+EULord.exe --choice Copilot,OfficeRecent    指定要开的「见仁见智」项目
+EULord.exe --override NarratorScripts=eea   逐条强制（eea / global / auto）
 ```
 
-| 参数 | 可用值 |
-|------|--------|
-| `-Action` | `Menu`（默认）/ `Apply` / `Restore` / `Status` / `Uninstall`（`Reapply` 供计划任务使用） |
-| `-Mode` | `Gentle`（默认）/ `Hardcore` |
-| `-Region` | `Ireland`（默认）/ `Germany` / `France` / `Netherlands` / `Spain` / `Italy` / `Sweden` / `Poland` / `Finland` / `Austria` |
-| `-Language` | `auto`（默认，按你在 Windows 语言设置中排第一的语言）/ `zh-TW` / `zh-CN` / `en` |
-| `-FullClean` | 配合 `Uninstall`：一并删除备份和日志 |
-| `-Force` | 跳过彻底模式和完全清除的确认提问 |
-</details>
+退出码：`0` 完成、`1` 失败、`2` 参数错误、`3` 需要管理员、`4` 部分完成。
 
-<details>
-<summary><b>从旧版（One-Click EU Grandpa）升级</b></summary>
+卸载 App **不提供**命令行 —— 移除软件必须有人逐一确认，不该能无人值守执行。
 
-直接用新版选 1～4 任一项即可。工具会把 `C:\ProgramData\OneClickEUGrandpa\` 移到新位置、保留原来的备份，并替换旧的计划任务。
-</details>
+---
 
-## 更多文档
+## 应用之后没看到效果？
 
-[策略对照表](docs/zh-CN/FEATURES.md) · [工作原理](docs/zh-CN/HOW-IT-WORKS.md) · [发布流程](docs/zh-CN/RELEASING.md) · [更新日志](CHANGELOG.md) · [安全性与免责声明](SECURITY.md)
+微软是分批推送这些功能的，写进设置不等于界面马上出现。工具应用完会**实际读回来验证**，每一项显示「已生效 / 尚未生效 / 无法判断」，并说明可能的原因（还没重启、微软还没推到这台、公司域或 MDM 策略覆盖了）。
 
-开发者：`powershell -NoProfile -ExecutionPolicy Bypass -File tests\Test-Engine.ps1` 运行测试（无需管理员权限、不会改动系统）。
+日志在 `C:\ProgramData\OneClickEULord\logs\eulord.log`，**一律英文、公历时间**，方便直接贴到 issue。
 
-许可证：[MIT](LICENSE)，不提供任何担保。
+---
+
+## 自己编译
+
+不需要 SDK、不需要 NuGet、不需要 Visual Studio。.NET Framework 4.8 是 Windows 11 内置的。
+
+```powershell
+.\tools\Build.ps1     # 产出 dist\EULord.exe，约 165 KB
+.\tools\Test.ps1      # 280 项测试，不需要管理员，不碰系统
+```
+
+技术细节在 [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md)，设计决策的完整记录在 [docs/SPEC.md](docs/SPEC.md)。
+
+---
+
+## 文档
+
+| 文档 | 说明 |
+|------|------|
+| [docs/POLICIES.md](docs/POLICIES.md) | 68 条策略逐条对照（由程序生成，三语） |
+| [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md) | 原理：Windows 怎么决定欧盟待遇，我们怎么介入 |
+| [docs/SPEC.md](docs/SPEC.md) | v2 的规格与决策记录 |
+| [docs/RELEASING.md](docs/RELEASING.md) | 发布流程（维护者用，英文） |
+| [SECURITY.md](SECURITY.md) | 安全性考量与报告方式 |
+| [CHANGELOG.md](CHANGELOG.md) | 版本记录 |
+
+> 用户文档有三种语言；维护者文档只有一份，避免翻译之间互相矛盾。
+
+---
+
+## 许可
+
+[MIT](LICENSE)。这是一个独立的开源项目，与微软没有任何关系。
