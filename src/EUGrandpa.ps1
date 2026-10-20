@@ -107,7 +107,9 @@ function Initialize-DataDir {
 
 function Write-Log {
     param([string]$Message, [ValidateSet('INFO', 'WARN', 'ERROR', 'OK')][string]$Level = 'INFO')
-    $stamp = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
+    # Force Gregorian/invariant formatting: on zh-TW etc. the thread culture's
+    # calendar would otherwise render the year in the Minguo (ROC) calendar.
+    $stamp = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss', [System.Globalization.CultureInfo]::InvariantCulture)
     $line  = "[$stamp] [$Level] $Message"
     try {
         Initialize-DataDir
