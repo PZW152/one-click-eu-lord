@@ -1,75 +1,93 @@
-# 運作原理 / How it works
+**繁體中文** · [简体中文](zh-CN/HOW-IT-WORKS.md) · [English](en/HOW-IT-WORKS.md)
+
+# 運作原理
 
 ## 1. Windows 怎麼判斷「你在不在 EEA」
 
-Windows 的功能開關由 `SystemSettings.DataModel.dll` 評估，流程大致是：
+地區策略由 `SystemSettings.DataModel.dll` 評估，流程大致是：
 
-1. 讀取登錄值
-   `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Control Panel\DeviceRegion`（DWORD，存 GeoID）。
-2. 若讀不到，呼叫 `GetUserGeoID(GEOCLASS_NATION)`，再把結果**快取**回上面那個登錄值。
+1. 讀取登錄值 `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Control Panel\DeviceRegion`（DWORD，存 GeoID）。
+2. 讀不到時呼叫 `GetUserGeoID(GEOCLASS_NATION)`，再把結果**快取**回上面那個登錄值。
 3. 用 `GetGeoInfoW` 把 GeoID 轉成兩碼國家代碼（如 `IE`、`DE`）。
-4. 讀取 `C:\Windows\System32\IntegratedServicesRegionPolicySet.json`，對每條策略：
-   - 若某地區條件命中 → 用該條件的狀態；
-   - 否則 → 用 `defaultState`。
+4. 讀取 `C:\Windows\System32\IntegratedServicesRegionPolicySet.json`，對每條策略：地區條件命中就用該條件的狀態，否則用 `defaultState`。
 
-因此「切換到 EEA」有兩個切入點：改**地區快取**（讓第 1~3 步看到 EEA），或改**策略檔**（讓第 4 步直接輸出 EEA 狀態）。本工具兩者都做。
+所以「變成歐盟大老爺」有兩個切入點：改**地區快取**（讓第 1～3 步看到 EEA），或改**策略檔**（讓第 4 步直接輸出 EEA 狀態）。本工具兩者都做。
 
-## 2. 溫和模式 (Gentle)
+## 2. 溫和模式
 
-只把 `DeviceRegion` 寫成一個 EEA 國家的 GeoID（預設愛爾蘭 = 68 / `0x44`）。
-Windows 隨後會**自己**把 84 條策略算成 EEA 狀態。優點：只動一個值、乾淨、易還原。
+只把 `DeviceRegion` 寫成一個 EEA 國家的 GeoID（預設愛爾蘭 = 68 / `0x44`），讓 Windows **自己**把 84 條策略算成 EEA 狀態。只動一個值、乾淨、好還原。值本來就正確時，工具不會重寫它。
 
-## 3. 徹底模式 (Hardcore)
+## 3. 徹底模式
 
-在溫和模式之上，直接改寫策略檔：對**每一條**策略
-- 先算出它在 EEA（以 `IE` 為基準）會是什麼狀態；
+在溫和模式之上直接改寫策略檔。對**每一條**策略：
+
+- 算出它在 EEA（以 `IE` 為基準）會是什麼狀態；
 - 把 `defaultState` 設成該狀態，並**移除 region 條件**。
 
-這樣一來，無論 `DeviceRegion` 是什麼，策略都輸出 EEA 狀態。即使日後地區被重設，好處仍在。
-這個轉換是**通用、不綁 GUID** 的——微軟新增策略時規則依然適用。原始檔會先備份到
-`C:\ProgramData\OneClickEUGrandpa\backups\IntegratedServicesRegionPolicySet.original.json`。
+這樣無論 `DeviceRegion` 是什麼，策略都輸出 EEA 狀態。轉換是**通用、不綁 GUID** 的，微軟新增策略時規則依然適用。
 
-## 4. UCPD 繞過（僅針對 DeviceRegion 單一值）
+細節：
 
-Windows 11 的 **UserChoice Protection Driver (UCPD)** 會以映像名稱比對，阻擋
-`reg.exe / powershell.exe / cmd.exe / regedit.exe` 等 Microsoft 簽章工具寫入受保護鍵（含 `DeviceRegion`）。
+- 原始檔先備份到 `C:\ProgramData\OneClickEUOverlord\backups\IntegratedServicesRegionPolicySet.original.json`。重複套用時**保留第一份**備份，不會被改寫過的版本蓋掉。
+- 系統原檔是**沒有 BOM 的 UTF-8**，工具寫回時也維持無 BOM（Windows PowerShell 5.1 的 `Set-Content -Encoding UTF8` 會自動加 BOM，所以改用 .NET 直接寫入）。
 
-本工具的 `Set-DeviceRegionValue`：
+## 4. UCPD 繞過（只針對 DeviceRegion 這一個值）
+
+Windows 11 的 **UserChoice Protection Driver（UCPD）** 以映像名稱比對，阻擋 `reg.exe`、`powershell.exe`、`cmd.exe`、`regedit.exe` 等工具寫入受保護的鍵（包含 `DeviceRegion`）。
+
+`Set-DeviceRegionValue` 的做法：
+
 1. 先用一般 API 寫入，再**讀回驗證**；
-2. 若值沒變（被 UCPD 擋），複製一份 `reg.exe` 到 `%TEMP%` 並**改名**，用它寫入這一個值，然後**刪除複本**。
+2. 若值沒變（被 UCPD 攔截），把 `reg.exe` 複製到 `%TEMP%` 並**改名**，用它寫入這一個值，然後**刪除複本**。
 
-此法不停用整台機器的 UCPD，是針對單一值的最小侵入繞過。若環境特殊（如 MDM 管理、UCPD 嚴格），
-可能需要在安全模式套用，或在 OOBE 階段直接選 EEA 國家。
+此法不停用整台機器的 UCPD。若環境特殊（MDM 管理、UCPD 規則更嚴），可能需要在安全模式下套用，或在初始設定（OOBE）時直接選 EEA 國家。
 
-## 5. 持久化 (Persistence)
+## 5. 持久化
 
-安裝一個排程工作 `OneClickEUGrandpa-Persist`（SYSTEM 權限）：
-- 觸發：**每次登入** + **每天 03:00**；
+排程工作 `OneClickEUOverlord-Persist`（SYSTEM 權限）：
+
+- 觸發：**每次登入**＋**每天 03:00**；
 - 動作：以 `-Action Reapply` 讀取 `state.json`，重新套用你選的模式與地區。
 
-這是為了對抗部分組建（如 25H2）累積更新頻繁還原策略檔的行為。工具腳本會被複製到
-`C:\ProgramData\OneClickEUGrandpa\EUGrandpa.ps1`，因此即使你刪掉下載的資料夾，持久化仍可運作。
+腳本會複製到 `C:\ProgramData\OneClickEUOverlord\EUOverlord.ps1`，所以刪掉下載的資料夾後持久化仍然有效。
 
-## 6. 檔案與資料位置（集中、可追蹤）
+## 6. 多語言
+
+- 畫面文字：繁體中文、简体中文、English。`-Language auto` 會先看你在 Windows「語言」設定裡**排第一位**的語言，再看顯示語言（有些電腦的顯示語言仍是英文，但使用者把中文排第一）。
+- 主控台改用 UTF-8 輸出，簡體字在預設繁中（cp950）主控台上也能正常顯示。
+- 日誌一律寫**英文**，時間用西元曆（避免繁中系統顯示民國年），方便直接附在問題回報裡。
+- `src\EUOverlord.ps1` 必須保存為**含 BOM 的 UTF-8**：Windows PowerShell 5.1 讀無 BOM 檔案時會用系統 ANSI 碼頁，中文會變亂碼。測試與發佈流程都會檢查。
+
+## 7. 檔案與資料位置
 
 ```
-C:\ProgramData\OneClickEUGrandpa\
-├─ EUGrandpa.ps1                      ← 供排程使用的腳本複本
-├─ state.json                         ← 目前模式／地區／原始地區
+C:\ProgramData\OneClickEUOverlord\
+├─ EUOverlord.ps1                     ← 給排程使用的腳本複本
+├─ state.json                         ← 目前模式／地區／原本地區
 ├─ backups\
 │  └─ IntegratedServicesRegionPolicySet.original.json
 └─ logs\
-   └─ eugrandpa.log
+   └─ euoverlord.log
 ```
 
-所有動作集中於此，`還原` 從備份復原、`完整解除安裝 -FullClean` 整個刪除。
-不散落登錄或系統各處，符合「可追蹤、可還原」原則。
+「還原」從備份復原；「完整解除安裝」（`-FullClean`）整個刪除。本工具不在系統其他地方散落檔案。
 
-## 7. 參考來源 / References
+### 從 v1.0.x 遷移
+
+v1.0.x 叫 One-Click EU Grandpa，資料在 `C:\ProgramData\OneClickEUGrandpa\`，排程叫 `OneClickEUGrandpa-Persist`。
+新版在 `Apply` / `Restore` / `Uninstall` 前會：
+
+1. 移除舊排程；
+2. 把舊資料夾整個搬到新位置（保留原始備份與原本地區），並刪掉舊腳本複本；
+3. 如果新舊資料夾同時存在，保留新的、不動舊的，並在日誌中說明。
+
+`Status` 保持唯讀，只會提示偵測到舊版。
+
+## 8. 參考來源
 
 - Rafael Rivera — *Device Region and Integrated Services Region Policy in Windows*
-- Pureinfotech / gHacks / Winaero — IntegratedServicesRegionPolicySet.json 介紹
-- Christoph Kolbicz / Binary Ninja — UCPD 驅動分析
-- Microsoft EU Policy Blog / Windows Insider — DMA 合規變更
+- Pureinfotech、gHacks、Winaero、XDA — IntegratedServicesRegionPolicySet.json 介紹
+- Christoph Kolbicz、Binary Ninja — UCPD 驅動分析
+- Microsoft EU Policy Blog、Windows Insider Blog — DMA 合規變更
 
-> 這些為第三方與社群分析；微軟未將編輯此檔列為支援設定。實際行為以你機器上的組建為準。
+> 以上多為第三方與社群分析；微軟沒有把編輯此檔列為支援的設定。實際行為以你機器上的組建為準。
