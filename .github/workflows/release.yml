@@ -1,0 +1,88 @@
+name: Release
+
+# Pushing a tag like v1.2.3 builds the Windows zip and publishes (or refreshes)
+# the matching GitHub Release. Can also be run by hand against an existing tag.
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to (re)build the release asset for, e.g. v1.0.0'
+        required: true
+        type: string
+
+# Least privilege: the job only needs to create releases / upload assets.
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # Passed via env (never interpolated into the script) to avoid injection.
+      RAW_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Validate tag
+        run: |
+          if ! [[ "$RAW_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Refusing tag '$RAW_TAG': must look like v1.2.3" >&2
+            exit 1
+          fi
+          echo "TAG=$RAW_TAG" >> "$GITHUB_ENV"
+
+      # actions/checkout v4.3.0, pinned to a full commit SHA.
+      - name: Check out the tag
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          ref: ${{ env.TAG }}
+          persist-credentials: false
+
+      - name: Build Windows zip (CRLF scripts)
+        run: |
+          set -euo pipefail
+          name="one-click-eu-grandpa-${TAG}"
+          stage="dist/one-click-eu-grandpa"
+          mkdir -p "$stage"
+          # Only the shipped content: no VCS data, no CI config.
+          cp -r src launchers docs README.md LICENSE SECURITY.md "$stage/"
+
+          # Windows runs these directly, so force CRLF regardless of checkout settings.
+          find "$stage" -type f \( -name '*.cmd' -o -name '*.bat' -o -name '*.ps1' \) -print0 |
+            while IFS= read -r -d '' f; do
+              sed -i 's/\r$//; s/$/\r/' "$f"
+            done
+
+          # Verify: every script must have CRLF and no bare LF.
+          bad=0
+          while IFS= read -r -d '' f; do
+            if [ "$(grep -c $'\r$' "$f")" -ne "$(wc -l < "$f")" ]; then
+              echo "Not pure CRLF: $f" >&2; bad=1
+            fi
+          done < <(find "$stage" -type f \( -name '*.cmd' -o -name '*.bat' -o -name '*.ps1' \) -print0)
+          [ "$bad" -eq 0 ]
+
+          (cd dist && zip -qr "../${name}.zip" one-click-eu-grandpa)
+          echo "ASSET=${name}.zip" >> "$GITHUB_ENV"
+          unzip -l "${name}.zip"
+
+      - name: Publish release
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG exists; replacing its zip asset."
+            gh release upload "$TAG" "$ASSET" --clobber
+          else
+            gh release create "$TAG" "$ASSET" \
+              --verify-tag \
+              --title "$TAG — 一鍵轉生歐盟爺 One-Click EU Grandpa" \
+              --generate-notes
+          fi
