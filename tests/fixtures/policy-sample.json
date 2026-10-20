@@ -1,0 +1,29 @@
+{
+  "$schema": "schemas/IntegratedServicesRegionPolicySet.Schema.1.1.0.json",
+  "version": "1.0",
+  "policies": [
+    {
+      "$comment": "Sample: off by default, on in the EEA.",
+      "guid": "{00000000-0000-0000-0000-000000000001}",
+      "defaultState": "disabled",
+      "conditions": { "region": { "enabled": ["DE", "FR", "IE"] } }
+    },
+    {
+      "$comment": "Sample: on by default, off in the EEA.",
+      "guid": "{00000000-0000-0000-0000-000000000002}",
+      "defaultState": "enabled",
+      "conditions": { "region": { "disabled": ["DE", "FR", "IE"] } }
+    },
+    {
+      "$comment": "Sample: region list that does not include the EEA.",
+      "guid": "{00000000-0000-0000-0000-000000000003}",
+      "defaultState": "disabled",
+      "conditions": { "region": { "enabled": ["CN", "TW"] } }
+    },
+    {
+      "$comment": "Sample: no conditions at all.",
+      "guid": "{00000000-0000-0000-0000-000000000004}",
+      "defaultState": "enabled"
+    }
+  ]
+}
