@@ -3,27 +3,105 @@
   "version": "1.0",
   "policies": [
     {
-      "$comment": "Sample: off by default, on in the EEA.",
-      "guid": "{00000000-0000-0000-0000-000000000001}",
+      "$comment": "Edge is uninstallable. Classified Benefit; global off, EEA on.",
+      "guid": "{1bca278a-5d11-4acf-ad2f-f9ab6d7f93a6}",
       "defaultState": "disabled",
-      "conditions": { "region": { "enabled": ["DE", "FR", "IE"] } }
+      "conditions": {
+        "region": {
+          "enabled": ["AT", "BE", "BG", "CH", "CY", "CZ", "DE", "DK", "EE", "ES", "FI", "FR", "GF", "GP", "GR", "HR", "HU", "IE", "IS", "IT", "LI", "LT", "LU", "LV", "MT", "MQ", "NL", "NO", "PL", "PT", "RE", "RO", "SE", "SI", "SK", "YT"]
+        }
+      }
     },
     {
-      "$comment": "Sample: on by default, off in the EEA.",
-      "guid": "{00000000-0000-0000-0000-000000000002}",
+      "$comment": "Narrator scripting extensions are enabled. Classified Loss; global on, EEA off.",
+      "guid": "{6033b294-79ff-47eb-bbde-97b4c6479217}",
       "defaultState": "enabled",
-      "conditions": { "region": { "disabled": ["DE", "FR", "IE"] } }
+      "conditions": {
+        "region": {
+          "disabled": ["AT", "BE", "BG", "CH", "CY", "CZ", "DE", "DK", "EE", "ES", "FI", "FR", "GF", "GP", "GR", "HR", "HU", "IE", "IS", "IT", "LI", "LT", "LU", "LV", "MT", "MQ", "NL", "NO", "PL", "PT", "RE", "RO", "SE", "SI", "SK", "YT"]
+        }
+      }
     },
     {
-      "$comment": "Sample: region list that does not include the EEA.",
-      "guid": "{00000000-0000-0000-0000-000000000003}",
+      "$comment": "Windows Copilot. Classified Choice; global on, EEA off.",
+      "guid": "{4ac54d32-0799-405f-9bf4-1fe094cd859c}",
+      "defaultState": "enabled",
+      "conditions": {
+        "region": {
+          "disabled": ["AT", "BE", "BG", "CH", "CY", "CZ", "DE", "DK", "EE", "ES", "FI", "FR", "GF", "GP", "GR", "HR", "HU", "IE", "IS", "IT", "LI", "LT", "LU", "LV", "MT", "MQ", "NL", "NO", "PL", "PT", "RE", "RO", "SE", "SI", "SK", "YT"]
+        }
+      }
+    },
+    {
+      "$comment": "Microsoft's promotional icons in the search box. Classified Benefit; global on, EEA off.",
+      "guid": "{61bf5046-c5db-4cd3-b6bf-929e5b421a6a}",
+      "defaultState": "enabled",
+      "conditions": {
+        "region": {
+          "disabled": ["AT", "BE", "BG", "CH", "CY", "CZ", "DE", "DK", "EE", "ES", "FI", "FR", "GF", "GP", "GR", "HR", "HU", "IE", "IS", "IT", "LI", "LT", "LU", "LV", "MT", "MQ", "NL", "NO", "PL", "PT", "RE", "RO", "SE", "SI", "SK", "YT"]
+        }
+      }
+    },
+    {
+      "$comment": "Campaign segment targeting is allowed. Duplicate of the entry below, as the shipped file really does.",
+      "guid": "{36996754-e327-483a-902f-523e2ba03239}",
+      "defaultState": "enabled",
+      "conditions": {
+        "region": {
+          "disabled": ["AT", "BE", "BG", "CH", "CY", "CZ", "DE", "DK", "EE", "ES", "FI", "FR", "GF", "GP", "GR", "HR", "HU", "IE", "IS", "IT", "LI", "LT", "LU", "LV", "MT", "MQ", "NL", "NO", "PL", "PT", "RE", "RO", "SE", "SI", "SK", "YT"]
+        }
+      }
+    },
+    {
+      "$comment": "Campaign segment targeting is allowed. Second copy of the same GUID.",
+      "guid": "{36996754-e327-483a-902f-523e2ba03239}",
+      "defaultState": "enabled",
+      "conditions": {
+        "region": {
+          "disabled": ["AT", "BE", "BG", "CH", "CY", "CZ", "DE", "DK", "EE", "ES", "FI", "FR", "GF", "GP", "GR", "HR", "HU", "IE", "IS", "IT", "LI", "LT", "LU", "LV", "MT", "MQ", "NL", "NO", "PL", "PT", "RE", "RO", "SE", "SI", "SK", "YT"]
+        }
+      }
+    },
+    {
+      "$comment": "Not in the catalog, and the EEA state differs. Must be left exactly as shipped.",
+      "guid": "{ffffffff-0000-4000-8000-000000000001}",
       "defaultState": "disabled",
-      "conditions": { "region": { "enabled": ["CN", "TW"] } }
+      "conditions": {
+        "region": {
+          "enabled": ["AT", "BE", "BG", "CH", "CY", "CZ", "DE", "DK", "EE", "ES", "FI", "FR", "GF", "GP", "GR", "HR", "HU", "IE", "IS", "IT", "LI", "LT", "LU", "LV", "MT", "MQ", "NL", "NO", "PL", "PT", "RE", "RO", "SE", "SI", "SK", "YT"]
+        }
+      }
     },
     {
-      "$comment": "Sample: no conditions at all.",
-      "guid": "{00000000-0000-0000-0000-000000000004}",
-      "defaultState": "enabled"
+      "$comment": "Lists IE but matches the default, so there is nothing to decide. Four of these exist on build 26300.",
+      "guid": "{ffffffff-0000-4000-8000-000000000002}",
+      "defaultState": "disabled",
+      "conditions": {
+        "region": {
+          "disabled": ["AT", "BE", "BG", "CH", "CY", "CZ", "DE", "DK", "EE", "ES", "FI", "FR", "GF", "GP", "GR", "HR", "HU", "IE", "IS", "IT", "LI", "LT", "LU", "LV", "MT", "MQ", "NL", "NO", "PL", "PT", "RE", "RO", "SE", "SI", "SK", "YT"]
+        }
+      }
+    },
+    {
+      "$comment": "A region list that has nothing to do with the EEA.",
+      "guid": "{ffffffff-0000-4000-8000-000000000003}",
+      "defaultState": "enabled",
+      "conditions": {
+        "region": {
+          "enabled": ["CN", "HK", "MO", "TW"]
+        }
+      }
+    },
+    {
+      "$comment": "Carries a key this tool knows nothing about. It must survive the rewrite untouched.",
+      "guid": "{ffffffff-0000-4000-8000-000000000004}",
+      "defaultState": "enabled",
+      "futureKey": { "nested": [1, 2.5, true, null], "note": "preserve me" },
+      "conditions": {
+        "region": {
+          "disabled": ["CA"]
+        }
+      }
     }
   ]
 }

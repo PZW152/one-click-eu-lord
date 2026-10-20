@@ -1,8 +1,21 @@
-# Keep Windows line endings for scripts that Windows executes directly.
+# Windows runs these directly, and a release that shipped LF scripts once already
+# proved this matters. tools\Check-Encoding.ps1 enforces it in CI.
+*.ps1 text eol=crlf
 *.cmd text eol=crlf
 *.bat text eol=crlf
-*.ps1 text eol=crlf
 
-# Normalize docs
-*.md  text eol=lf
+# C# sources are UTF-8 with a BOM and CRLF. The BOM is not optional: without it
+# csc.exe decodes with the machine's ANSI code page, and on a zh-TW install every
+# Chinese string in the catalog becomes mojibake.
+*.cs  text eol=crlf
+*.manifest text eol=crlf
+
+# Documentation and data.
+*.md   text eol=lf
 *.json text eol=lf
+*.yml  text eol=lf
+
+# Never touch these.
+*.png binary
+*.ico binary
+*.exe binary

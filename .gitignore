@@ -5,14 +5,16 @@ desktop.ini
 *.swp
 *~
 
-# Local runtime artifacts (should never be committed; they live in C:\ProgramData)
+# Local runtime artifacts. These belong in C:\ProgramData\OneClickEULord, never here.
 *.log
 state.json
 backups/
 logs/
 
-# Any accidental local copy of the system policy file
+# Any accidental local copy of the system policy file. The test fixture is named
+# policy-sample.json precisely so it is not caught by this.
 IntegratedServicesRegionPolicySet*.json
 
-# Build output (tools/Build-SingleFile.ps1)
+# Build output (tools\Build.ps1, tools\Test.ps1, and the UI snapshots).
+# Screenshots that the README uses are copied into docs\images\ instead.
 dist/
