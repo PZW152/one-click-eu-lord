@@ -174,3 +174,6 @@ finally {
 
 if ($script:Failures -gt 0) { Write-Host "$script:Failures test(s) failed." -ForegroundColor Red; exit 1 }
 Write-Host 'All tests passed.' -ForegroundColor Green
+# Explicit: the single-file checks leave a deliberate non-zero $LASTEXITCODE
+# behind, which CI wrappers would otherwise report as the script's result.
+exit 0
