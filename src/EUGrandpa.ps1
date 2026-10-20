@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     一鍵轉生歐盟爺 (One-Click EU Grandpa) — core engine.
 
