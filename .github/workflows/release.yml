@@ -1,7 +1,8 @@
 name: Release
 
-# Pushing a tag like v1.2.3 builds the Windows zip and publishes (or refreshes)
-# the matching GitHub Release. Can also be run by hand against an existing tag.
+# Pushing a tag like v1.2.3 tests that exact commit on Windows, builds the
+# Windows zip and publishes (or refreshes) the matching GitHub Release.
+# Can also be run by hand against an existing tag (v1.1.0 or later).
 on:
   push:
     tags:
@@ -9,25 +10,52 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Existing tag to (re)build the release asset for, e.g. v1.0.0'
+        description: 'Existing tag (v1.1.0 or later) to rebuild the release asset for'
         required: true
         type: string
 
-# Least privilege: the job only needs to create releases / upload assets.
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-${{ github.event.inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
+env:
+  # Passed via env (never interpolated into scripts) to avoid injection.
+  RAW_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
 jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Validate tag
+        shell: pwsh
+        run: |
+          if ($env:RAW_TAG -notmatch '^v\d+\.\d+\.\d+$') { throw "Refusing tag '$env:RAW_TAG': must look like v1.2.3" }
+
+      # actions/checkout v4.3.0, pinned to a full commit SHA.
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          ref: ${{ env.RAW_TAG }}
+          persist-credentials: false
+
+      - name: Tests (Windows PowerShell 5.1)
+        shell: powershell
+        run: .\tests\Test-Engine.ps1
+
+      - name: Tests (PowerShell 7)
+        shell: pwsh
+        run: .\tests\Test-Engine.ps1
+
   release:
+    needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: write   # create the release and upload its asset
     env:
-      # Passed via env (never interpolated into the script) to avoid injection.
-      RAW_TAG: ${{ github.event.inputs.tag || github.ref_name }}
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
     steps:
@@ -39,47 +67,57 @@ jobs:
           fi
           echo "TAG=$RAW_TAG" >> "$GITHUB_ENV"
 
-      # actions/checkout v4.3.0, pinned to a full commit SHA.
-      - name: Check out the tag
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
         with:
           ref: ${{ env.TAG }}
           persist-credentials: false
 
-      - name: Build Windows zip (CRLF scripts)
+      - name: Build Windows zip
         run: |
           set -euo pipefail
-          name="one-click-eu-grandpa-${TAG}"
-          stage="dist/one-click-eu-grandpa"
+          name="one-click-eu-overlord-${TAG}"
+          stage="dist/one-click-eu-overlord"
           mkdir -p "$stage"
-          # Only the shipped content: no VCS data, no CI config.
-          cp -r src launchers docs README.md LICENSE SECURITY.md "$stage/"
+          # Only what users need: no VCS data, CI config or tests.
+          cp -r src launchers docs tools "$stage/"
+          cp README.md README.zh-CN.md README.en.md CHANGELOG.md LICENSE SECURITY.md "$stage/"
+
+          scripts() { find "$stage" -type f \( -name '*.cmd' -o -name '*.bat' -o -name '*.ps1' \) -print0; }
 
           # Windows runs these directly, so force CRLF regardless of checkout settings.
-          find "$stage" -type f \( -name '*.cmd' -o -name '*.bat' -o -name '*.ps1' \) -print0 |
-            while IFS= read -r -d '' f; do
-              sed -i 's/\r$//; s/$/\r/' "$f"
-            done
+          scripts | while IFS= read -r -d '' f; do sed -i 's/\r$//; s/$/\r/' "$f"; done
 
-          # Verify: every script must have CRLF and no bare LF.
           bad=0
           while IFS= read -r -d '' f; do
             if [ "$(grep -c $'\r$' "$f")" -ne "$(wc -l < "$f")" ]; then
               echo "Not pure CRLF: $f" >&2; bad=1
             fi
-          done < <(find "$stage" -type f \( -name '*.cmd' -o -name '*.bat' -o -name '*.ps1' \) -print0)
+            # Every PowerShell script needs a UTF-8 BOM: Windows PowerShell 5.1 decodes
+            # BOM-less files with the ANSI code page (e.g. cp950) and garbles CJK text.
+            if [[ "$f" == *.ps1 ]] && [ "$(head -c 3 "$f" | od -An -tx1 | tr -d ' \n')" != "efbbbf" ]; then
+              echo "Missing UTF-8 BOM: $f" >&2; bad=1
+            fi
+          done < <(scripts)
           [ "$bad" -eq 0 ]
 
-          # The engine contains Chinese text; Windows PowerShell 5.1 on a non-UTF-8
-          # code page (e.g. cp950) only decodes it correctly if the file has a UTF-8 BOM.
-          if [ "$(head -c 3 "$stage/src/EUGrandpa.ps1" | od -An -tx1 | tr -d ' \n')" != "efbbbf" ]; then
-            echo "src/EUGrandpa.ps1 must start with a UTF-8 BOM" >&2
-            exit 1
-          fi
-
-          (cd dist && zip -qr "../${name}.zip" one-click-eu-grandpa)
+          (cd dist && zip -qr "../${name}.zip" one-click-eu-overlord)
           echo "ASSET=${name}.zip" >> "$GITHUB_ENV"
           unzip -l "${name}.zip"
+
+      - name: Release notes from CHANGELOG.md
+        run: |
+          set -euo pipefail
+          # The section under "## vX.Y.Z", up to the next "## " heading.
+          awk -v tag="$TAG" '
+            $0 ~ "^## " tag "([^0-9.]|$)" { on = 1; next }
+            on && /^## / { exit }
+            on { print }
+          ' CHANGELOG.md > notes.md
+          if [ ! -s notes.md ] || ! grep -q '[^[:space:]]' notes.md; then
+            echo "CHANGELOG.md has no section for $TAG" >&2
+            exit 1
+          fi
+          cat notes.md
 
       - name: Publish release
         run: |
@@ -90,6 +128,6 @@ jobs:
           else
             gh release create "$TAG" "$ASSET" \
               --verify-tag \
-              --title "$TAG — 一鍵轉生歐盟爺 One-Click EU Grandpa" \
-              --generate-notes
+              --title "$TAG — 一鍵轉生歐盟爺 · 一键转生欧盟爷 · One-Click EU Overlord" \
+              --notes-file notes.md
           fi

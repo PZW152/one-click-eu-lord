@@ -1,0 +1,29 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  engine:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      # actions/checkout v4.3.0, pinned to a full commit SHA.
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          persist-credentials: false
+
+      # The launchers call powershell.exe, so Windows PowerShell 5.1 is what matters most.
+      - name: Tests (Windows PowerShell 5.1)
+        shell: powershell
+        run: .\tests\Test-Engine.ps1
+
+      - name: Tests (PowerShell 7)
+        shell: pwsh
+        run: .\tests\Test-Engine.ps1
