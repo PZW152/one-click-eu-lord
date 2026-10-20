@@ -70,6 +70,13 @@ jobs:
           done < <(find "$stage" -type f \( -name '*.cmd' -o -name '*.bat' -o -name '*.ps1' \) -print0)
           [ "$bad" -eq 0 ]
 
+          # The engine contains Chinese text; Windows PowerShell 5.1 on a non-UTF-8
+          # code page (e.g. cp950) only decodes it correctly if the file has a UTF-8 BOM.
+          if [ "$(head -c 3 "$stage/src/EUGrandpa.ps1" | od -An -tx1 | tr -d ' \n')" != "efbbbf" ]; then
+            echo "src/EUGrandpa.ps1 must start with a UTF-8 BOM" >&2
+            exit 1
+          fi
+
           (cd dist && zip -qr "../${name}.zip" one-click-eu-grandpa)
           echo "ASSET=${name}.zip" >> "$GITHUB_ENV"
           unzip -l "${name}.zip"

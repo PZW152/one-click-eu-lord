@@ -63,7 +63,7 @@ HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Control Panel\DeviceRegion
 
 ## 怎麼用 / How to use
 
-1. 下載整個資料夾（或 `git clone`）。
+1. 到 [Releases](https://github.com/PZW152/one-click-eu-grandpa/releases/latest) 下載最新的 `one-click-eu-grandpa-vX.Y.Z.zip` 並解壓縮（也可以 `git clone`）。
 2. 打開 `launchers\` 資料夾。
 3. 想要低風險 → 雙擊 **`1-一鍵溫和模式 Apply-Gentle.cmd`**；想要最徹底 → 雙擊 **`2-一鍵徹底模式 Apply-Hardcore.cmd`**。
 4. 跳出 UAC 時按「是」（需要系統管理員權限）。
