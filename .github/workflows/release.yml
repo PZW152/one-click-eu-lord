@@ -1,10 +1,10 @@
 name: Release
 
-# Pushing a tag like v1.2.3 tests that exact commit on Windows, builds the
-# single-file EU-Overlord.cmd and publishes (or refreshes) the GitHub Release.
+# Pushing a tag like v2.0.0 checks out that exact commit, builds EULord.exe with
+# the compiler inside Windows, runs the suite, and publishes the release.
+#
 # The asset name never changes, so this link always serves the newest version:
-#   https://github.com/PZW152/one-click-eu-overlord/releases/latest/download/EU-Overlord.cmd
-# Can also be run by hand against an existing tag (v1.2.0 or later).
+#   https://github.com/PZW152/one-click-eu-lord/releases/latest/download/EULord.exe
 on:
   push:
     tags:
@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Existing tag (v1.2.0 or later) to rebuild the release asset for'
+        description: 'Existing tag (v2.0.0 or later) to rebuild the release asset for'
         required: true
         type: string
 
@@ -24,13 +24,14 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # Passed via env (never interpolated into scripts) to avoid injection.
+  # Passed through the environment and never interpolated into a script body, so a
+  # tag name can never become part of a command.
   RAW_TAG: ${{ github.event.inputs.tag || github.ref_name }}
 
 jobs:
   release:
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     permissions:
       contents: write   # create the release and upload its asset
     steps:
@@ -46,25 +47,25 @@ jobs:
           ref: ${{ env.TAG }}
           persist-credentials: false
 
-      # The tests also build EU-Overlord.cmd in a sandbox and run it end to end.
-      - name: Tests (Windows PowerShell 5.1)
-        shell: powershell
-        run: .\tests\Test-Engine.ps1
-
-      - name: Tests (PowerShell 7)
+      - name: Version matches the tag and the changelog
         shell: pwsh
-        run: .\tests\Test-Engine.ps1
+        run: .\tools\Check-Version.ps1 -Tag $env:TAG
 
-      - name: Engine version matches the tag
+      - name: Source encoding and line endings
         shell: pwsh
-        run: |
-          $m = [regex]::Match((Get-Content src\EUOverlord.ps1 -Raw), '\$Script:Version\s*=\s*''(\d+\.\d+\.\d+)''')
-          if (-not $m.Success) { throw 'No $Script:Version found in src\EUOverlord.ps1' }
-          if ("v$($m.Groups[1].Value)" -ne $env:TAG) { throw "Engine says v$($m.Groups[1].Value) but the tag is $env:TAG" }
+        run: .\tools\Check-Encoding.ps1
 
-      - name: Build EU-Overlord.cmd
+      - name: Build
         shell: pwsh
-        run: .\tools\Build-SingleFile.ps1 -OutFile dist\EU-Overlord.cmd
+        run: .\tools\Build.ps1
+
+      - name: Tests
+        shell: pwsh
+        run: .\tools\Test.ps1
+
+      - name: Catalog covers this runner's policy file
+        shell: pwsh
+        run: .\tools\Check-Catalog.ps1
 
       - name: Release notes from CHANGELOG.md
         shell: bash
@@ -82,6 +83,21 @@ jobs:
           fi
           cat notes.md
 
+      - name: Record the asset's hash in the notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha=$(sha256sum dist/EULord.exe | cut -d' ' -f1)
+          size=$(stat -c%s dist/EULord.exe)
+          {
+            echo
+            echo '---'
+            echo
+            echo "\`EULord.exe\` — ${size} bytes"
+            echo
+            echo "SHA-256 \`${sha}\`"
+          } >> notes.md
+
       - name: Publish release
         shell: bash
         env:
@@ -91,10 +107,10 @@ jobs:
           set -euo pipefail
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG exists; replacing its asset."
-            gh release upload "$TAG" dist/EU-Overlord.cmd --clobber
+            gh release upload "$TAG" dist/EULord.exe --clobber
           else
-            gh release create "$TAG" dist/EU-Overlord.cmd \
+            gh release create "$TAG" dist/EULord.exe \
               --verify-tag \
-              --title "$TAG — 一鍵轉生歐盟爺 · 一键转生欧盟爷 · One-Click EU Overlord" \
+              --title "$TAG — 一鍵轉生歐爺 · 一键转生欧爷 · One-Click EU Lord" \
               --notes-file notes.md
           fi

@@ -1,29 +1,56 @@
 name: Test
 
+# Builds EULord.exe with the compiler that ships inside Windows and runs the
+# suite. No SDK, no NuGet, no MSBuild: if this passes on a bare windows-latest
+# runner, it builds on any Windows 11 machine.
 on:
   push:
     branches: [main]
   pull_request:
-  workflow_call:
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  engine:
+  test:
     runs-on: windows-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       # actions/checkout v4.3.0, pinned to a full commit SHA.
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
         with:
           persist-credentials: false
 
-      # EU-Overlord.cmd runs powershell.exe, so Windows PowerShell 5.1 is what matters most.
-      - name: Tests (Windows PowerShell 5.1)
-        shell: powershell
-        run: .\tests\Test-Engine.ps1
-
-      - name: Tests (PowerShell 7)
+      - name: Build
         shell: pwsh
-        run: .\tests\Test-Engine.ps1
+        run: .\tools\Build.ps1
+
+      # The suite runs with no administrator rights and redirects every path it
+      # could touch into a temporary sandbox, so the runner is not modified.
+      - name: Tests
+        shell: pwsh
+        run: .\tools\Test.ps1
+
+      # The GitHub runner's policy file is from a different Windows build than any
+      # developer machine, so this exercises the catalog against a second build and
+      # reports anything Microsoft has added since the classification was made.
+      - name: Catalog covers this runner's policy file
+        shell: pwsh
+        run: .\tools\Check-Catalog.ps1
+
+      - name: Source encoding and line endings
+        shell: pwsh
+        run: .\tools\Check-Encoding.ps1
+
+      - name: Version matches CHANGELOG
+        shell: pwsh
+        run: .\tools\Check-Version.ps1
+
+      # actions/upload-artifact v4.6.2, pinned to a full commit SHA.
+      - name: Upload the exe
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: EULord-exe
+          path: dist/EULord.exe
+          if-no-files-found: error
