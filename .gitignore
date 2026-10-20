@@ -1,0 +1,15 @@
+# OS / editor cruft
+Thumbs.db
+desktop.ini
+.DS_Store
+*.swp
+*~
+
+# Local runtime artifacts (should never be committed; they live in C:\ProgramData)
+*.log
+state.json
+backups/
+logs/
+
+# Any accidental local copy of the system policy file
+IntegratedServicesRegionPolicySet*.json

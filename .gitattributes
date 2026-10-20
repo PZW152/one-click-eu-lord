@@ -1,0 +1,8 @@
+# Keep Windows line endings for scripts that Windows executes directly.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Normalize docs
+*.md  text eol=lf
+*.json text eol=lf
