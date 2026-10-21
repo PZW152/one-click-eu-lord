@@ -51,6 +51,14 @@ jobs:
         shell: pwsh
         run: .\tools\Check-Version.ps1 -Tag $env:TAG
 
+      # Every gate an ordinary push runs, a release runs too. This one was added to
+      # test.yml and not here, so v2.0.0 shipped without it: the release path was
+      # quietly weaker than the push path, which is the opposite of what a release
+      # should be.
+      - name: Theme matches the design tokens
+        shell: pwsh
+        run: .\tools\Check-Theme.ps1
+
       - name: Source encoding and line endings
         shell: pwsh
         run: .\tools\Check-Encoding.ps1

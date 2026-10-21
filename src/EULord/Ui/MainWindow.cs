@@ -58,7 +58,10 @@ namespace EULord.Ui
 
             Title = S.AppName + " " + Build.Version;
             Width = Theme.WindowMinWidth;
-            Height = Theme.WindowMinHeight + 160;
+            // Tall enough that a fresh launch shows the whole collapsed page without
+            // scrolling. It opened just short of its own content before, so the first
+            // thing anyone saw was a scroll bar.
+            Height = Theme.WindowDefaultHeight;
             MinWidth = Theme.WindowMinWidth;
             MinHeight = Theme.WindowMinHeight;
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
@@ -101,19 +104,27 @@ namespace EULord.Ui
             _page.Children.Add(BuildSections());
             _page.Children.Add(BuildFooter());
 
+            // Hidden, not Auto: the wheel and the keyboard still scroll, but the stock
+            // bar is never drawn. ThinScrollBar is laid over the right edge instead,
+            // so it costs the page no width and the layout does not jump the moment
+            // the content gets long enough to scroll.
             var scroll = new ScrollViewer
             {
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,
                 HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
                 Content = _page,
                 Focusable = false,
                 Background = Brushes.Transparent
             };
 
+            var scrollArea = new Grid();
+            scrollArea.Children.Add(scroll);
+            scrollArea.Children.Add(new ThinScrollBar(scroll));
+
             var root = new DockPanel { LastChildFill = true };
             DockPanel.SetDock(_titleBar, Dock.Top);
             root.Children.Add(_titleBar);
-            root.Children.Add(scroll);
+            root.Children.Add(scrollArea);
 
             Content = root;
             RefreshStatus();

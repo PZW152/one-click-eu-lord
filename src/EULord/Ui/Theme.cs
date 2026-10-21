@@ -131,6 +131,12 @@ namespace EULord.Ui
         /// <summary>Fill behind the title bar's close button on hover.</summary>
         public static Brush CloseHover { get { return Pick(0xFFB3402Eu, 0xFFB3402Eu); } }
 
+        /// <summary>The scroll thumb at rest. Alpha hex: 35% ink, so it reads on both the ground and a colour plane without a track behind it.</summary>
+        public static Brush ScrollThumb { get { return Pick(0x59111111u, 0x59FFFFFFu); } }
+
+        /// <summary>The scroll thumb while hovered or dragged. 65% ink.</summary>
+        public static Brush ScrollThumbHover { get { return Pick(0xA6111111u, 0xA6FFFFFFu); } }
+
         // -- type ------------------------------------------------------------
 
         public const string DisplayFamily = "Arial, Microsoft JhengHei UI, Microsoft YaHei UI";
@@ -233,11 +239,23 @@ namespace EULord.Ui
         /// <summary>The progress band along the bottom of plane-2.</summary>
         public const double Band = 6;
 
+        /// <summary>Width of the scroll strip at the window's right edge. No arrows, no track.</summary>
+        public const double Scrollbar = 10;
+
+        /// <summary>Width of the thumb inside that strip, right-aligned.</summary>
+        public const double ScrollThumb0 = 4;
+
+        /// <summary>Shortest the thumb gets, so it stays grabbable on a very long page.</summary>
+        public const double ScrollThumbMin = 32;
+
         /// <summary>The 12-column grid stops making sense below this.</summary>
         public const double WindowMinWidth = 1040;
 
         /// <summary>Below this the status readout and the apply button cannot both be seen.</summary>
         public const double WindowMinHeight = 720;
+
+        /// <summary>The height a fresh launch opens at: enough for the whole collapsed page plus the title bar, so nobody meets a scroll bar before they have read anything.</summary>
+        public const double WindowDefaultHeight = 960;
 
         // -- motion ----------------------------------------------------------
 

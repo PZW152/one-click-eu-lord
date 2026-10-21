@@ -607,6 +607,119 @@ namespace EULord.Ui
         }
     }
 
+    /// <summary>
+    /// A scroll bar drawn to this design: a thin square thumb on the right edge, no
+    /// arrow buttons, no track chrome, nothing rounded, and invisible when there is
+    /// nothing to scroll.
+    ///
+    /// The stock WPF bar is a different design language entirely -- rounded, grey,
+    /// with arrow buttons -- and restyling it means a ControlTemplate, which is XAML
+    /// work this project deliberately does without. Driving a ScrollViewer from a
+    /// plain element is less code and gives exact control.
+    /// </summary>
+    internal sealed class ThinScrollBar : Border
+    {
+        private readonly ScrollViewer _viewer;
+        private readonly Border _thumb;
+        private bool _dragging;
+        private double _grabOffset;
+
+        public ThinScrollBar(ScrollViewer viewer)
+        {
+            _viewer = viewer;
+
+            _thumb = new Border
+            {
+                Background = Theme.ScrollThumb,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Top,
+                Width = Theme.ScrollThumb0,
+                SnapsToDevicePixels = true
+            };
+
+            Child = new Grid { Children = { _thumb } };
+            Width = Theme.Scrollbar;
+            Background = Brushes.Transparent;
+            HorizontalAlignment = HorizontalAlignment.Right;
+            Visibility = Visibility.Collapsed;
+            Cursor = Cursors.Arrow;
+
+            _viewer.ScrollChanged += delegate { Sync(); };
+            SizeChanged += delegate { Sync(); };
+
+            MouseEnter += delegate { _thumb.Background = Theme.ScrollThumbHover; };
+            MouseLeave += delegate { if (!_dragging) _thumb.Background = Theme.ScrollThumb; };
+
+            PreviewMouseLeftButtonDown += OnPress;
+            PreviewMouseMove += OnMove;
+            PreviewMouseLeftButtonUp += OnRelease;
+        }
+
+        private void OnPress(object sender, MouseButtonEventArgs e)
+        {
+            if (_viewer.ScrollableHeight <= 0) return;
+            double y = e.GetPosition(this).Y;
+
+            if (y >= _thumb.Margin.Top && y <= _thumb.Margin.Top + _thumb.Height)
+            {
+                _grabOffset = y - _thumb.Margin.Top;
+            }
+            else
+            {
+                // Clicking the track jumps the thumb's centre to the pointer, which is
+                // what a bar this thin needs: paging would take many clicks.
+                _grabOffset = _thumb.Height / 2;
+                ScrollTo(y - _grabOffset);
+            }
+
+            _dragging = true;
+            _thumb.Background = Theme.ScrollThumbHover;
+            CaptureMouse();
+            e.Handled = true;
+        }
+
+        private void OnMove(object sender, MouseEventArgs e)
+        {
+            if (!_dragging) return;
+            ScrollTo(e.GetPosition(this).Y - _grabOffset);
+        }
+
+        private void OnRelease(object sender, MouseButtonEventArgs e)
+        {
+            if (!_dragging) return;
+            _dragging = false;
+            ReleaseMouseCapture();
+            _thumb.Background = IsMouseOver ? Theme.ScrollThumbHover : Theme.ScrollThumb;
+        }
+
+        private void ScrollTo(double thumbTop)
+        {
+            double travel = ActualHeight - _thumb.Height;
+            if (travel <= 0) return;
+            double fraction = Math.Max(0, Math.Min(1, thumbTop / travel));
+            _viewer.ScrollToVerticalOffset(fraction * _viewer.ScrollableHeight);
+        }
+
+        private void Sync()
+        {
+            double scrollable = _viewer.ScrollableHeight;
+            if (scrollable <= 0 || ActualHeight <= 0)
+            {
+                Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            Visibility = Visibility.Visible;
+
+            double visible = _viewer.ViewportHeight / Math.Max(1, _viewer.ExtentHeight);
+            double height = Math.Max(Theme.ScrollThumbMin, ActualHeight * visible);
+            double top = (ActualHeight - height) * (_viewer.VerticalOffset / scrollable);
+
+            _thumb.Height = height;
+            _thumb.Margin = new Thickness(0, top, 0, 0);
+        }
+    }
+
     internal static class Layout
     {
         /// <summary>
