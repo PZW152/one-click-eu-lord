@@ -135,7 +135,10 @@ namespace EULord.Core
         public static bool IsWindowsOriginal(JsonObject root)
         {
             JsonArray policies = Policies(root);
-            if (policies == null) return false;
+
+            // No policies means no source: writing a file built from this would wipe
+            // the machine's whole policy set.
+            if (policies == null || policies.Count == 0) return false;
             foreach (JsonValue v in policies.Items)
             {
                 var p = v as JsonObject;

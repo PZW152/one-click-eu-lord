@@ -157,7 +157,11 @@ namespace EULord.Core
             arguments = string.Empty;
             if (string.IsNullOrEmpty(command)) return;
 
+            // After trimming, not before: a registry value holding only spaces is empty
+            // here, and indexing it would throw rather than report "no uninstaller".
             command = command.Trim();
+            if (command.Length == 0) { fileName = string.Empty; return; }
+
             if (command[0] == '"')
             {
                 int close = command.IndexOf('"', 1);

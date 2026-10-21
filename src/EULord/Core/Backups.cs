@@ -34,6 +34,13 @@ namespace EULord.Core
         {
             JsonObject root = PolicyFile.TryReadLive();
             if (root == null) return PolicyFileOrigin.Unreadable;
+
+            // A file with no policies at all is neither Windows' nor ours. Without this,
+            // the absence of region conditions reads as "we wrote it" and the status
+            // claims the superset is applied to a file that contains nothing.
+            JsonArray policies = PolicyFile.Policies(root);
+            if (policies == null || policies.Count == 0) return PolicyFileOrigin.Unreadable;
+
             return PolicyFile.IsWindowsOriginal(root) ? PolicyFileOrigin.WindowsOriginal : PolicyFileOrigin.Ours;
         }
 

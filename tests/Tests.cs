@@ -88,6 +88,9 @@ namespace EULord.Tests
                 ShellTests();
                 UpdateTests();
                 CliTests();
+                RegionOriginalTests();
+                HostileInputTests();
+                RoundTripTests();
             }
             catch (Exception ex)
             {
@@ -898,6 +901,15 @@ namespace EULord.Tests
             Shell.SplitCommand(null, out file, out arguments);
             Equal("a null command yields an empty program", string.Empty, file);
 
+            // A registry value holding only spaces used to crash here rather than
+            // report that the app has no usable uninstaller.
+            Shell.SplitCommand("   ", out file, out arguments);
+            Equal("a whitespace-only command yields an empty program", string.Empty, file);
+            Shell.SplitCommand(string.Empty, out file, out arguments);
+            Equal("an empty command yields an empty program", string.Empty, file);
+            Shell.SplitCommand("\t\t", out file, out arguments);
+            Equal("a tabs-only command yields an empty program", string.Empty, file);
+
             // Running something harmless proves the pipe handling, which is where a
             // naive implementation deadlocks.
             ProcessResult result = Shell.Run(Shell.System32("cmd.exe"), "/c echo eulord-probe", 20000);
@@ -998,6 +1010,200 @@ namespace EULord.Tests
             // Removing apps must not be reachable without a person confirming each one.
             foreach (string word in new[] { "--uninstall", "--remove-app", "--uninstall-app" })
                 Check("there is no " + word + " switch", Cli.Parse(new[] { word }).Error != null);
+        }
+
+        // -- the whole file journey, for real ------------------------------------
+
+        private static void RoundTripTests()
+        {
+            Section("apply and restore against a real file");
+
+            // Everything below writes and reads actual files, in the sandbox. It is the
+            // closest the suite gets to what happens on a user's machine without
+            // needing administrator rights or touching System32.
+            if (Directory.Exists(Paths.BackupDir)) Directory.Delete(Paths.BackupDir, true);
+            InstallFixtureAsLivePolicy();
+            string windowsOriginal = File.ReadAllText(Paths.PolicyFile, Encoding.UTF8);
+
+            var state = new State { RegionIso = "IE", RegionGeoId = 68 };
+            state.SetOverride("Copilot", PolicyOverride.Eea);
+
+            // 1. back up, 2. plan from the pristine source, 3. write it
+            Backups.Capture();
+            string source = Backups.PristineSource();
+            Check("a pristine source is found before writing", source != null);
+
+            PolicyPlan plan = PolicyFile.BuildPlan(source, "IE", state);
+            SystemFile.WriteAllTextNoBom(Paths.PolicyFile, plan.Json);
+
+            // 4. the check the engine now runs before it reports success
+            string problem;
+            Check("the written file passes the read-back check", Engine.PolicyFileSurvivedWrite(plan.Json, out problem));
+            Equal("with nothing to report", null, problem);
+
+            Equal("and the live file is now ours", PolicyFileOrigin.Ours, Backups.ClassifyLive());
+            Check("and it has no byte order mark", !SystemFile.HasUtf8Bom(Paths.PolicyFile));
+
+            var onDisk = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (JsonValue v in PolicyFile.Policies(PolicyFile.TryReadLive()).Items)
+            {
+                var p = v as JsonObject;
+                onDisk[p.GetString("guid")] = p.GetString("defaultState");
+            }
+            Equal("Edge ended up uninstallable", "enabled", onDisk["{1bca278a-5d11-4acf-ad2f-f9ab6d7f93a6}"]);
+            Equal("Narrator scripting was kept", "enabled", onDisk["{6033b294-79ff-47eb-bbde-97b4c6479217}"]);
+            Equal("the ticked Copilot was turned off", "disabled", onDisk["{4ac54d32-0799-405f-9bf4-1fe094cd859c}"]);
+
+            // 5. running it again must land on exactly the same bytes, or the scheduled
+            //    task would rewrite a system file on every single trigger
+            string first = File.ReadAllText(Paths.PolicyFile, Encoding.UTF8);
+            PolicyPlan again = PolicyFile.BuildPlan(Backups.PristineSource(), "IE", state);
+            SystemFile.WriteAllTextNoBom(Paths.PolicyFile, again.Json);
+            Equal("re-applying produces byte-identical output",
+                  first, File.ReadAllText(Paths.PolicyFile, Encoding.UTF8));
+
+            // 6. a damaged file must be caught rather than reported as success
+            File.WriteAllText(Paths.PolicyFile, "{\"$schema\":\"x\",\"version\":\"1.0\",\"policies\":[", new UTF8Encoding(false));
+            Check("a truncated file fails the read-back check", !Engine.PolicyFileSurvivedWrite(plan.Json, out problem));
+            Check("and says why", problem != null && problem.Length > 0);
+
+            // 7. and the rollback puts Windows' own file back
+            var rollback = new EngineResult();
+            Engine.RollBackPolicyFile(windowsOriginal, rollback);
+            Equal("after rollback the live file is Windows' own again",
+                  PolicyFileOrigin.WindowsOriginal, Backups.ClassifyLive());
+            Equal("byte for byte", windowsOriginal, File.ReadAllText(Paths.PolicyFile, Encoding.UTF8));
+            Check("and the rollback is reported, not hidden", rollback.Problems.Count > 0);
+
+            // 8. a plain restore from the backup gets to the same place
+            SystemFile.WriteAllTextNoBom(Paths.PolicyFile, plan.Json);
+            string backup = Backups.RestoreSourcePath();
+            Check("a backup is available to restore from", backup != null);
+            SystemFile.WriteAllTextNoBom(Paths.PolicyFile, File.ReadAllText(backup, Encoding.UTF8));
+            Equal("restoring from the backup returns Windows' own file",
+                  windowsOriginal, File.ReadAllText(Paths.PolicyFile, Encoding.UTF8));
+
+            InstallFixtureAsLivePolicy();
+        }
+
+        // -- what the region was before -----------------------------------------
+
+        private static void RegionOriginalTests()
+        {
+            Section("the region to restore to");
+
+            // Observing no cached region is the strongest evidence there is, and it has
+            // to beat a stale v1 record. Getting this wrong makes restore *write* a
+            // region the machine never had rather than removing the value.
+            var adopted = new State { OriginalRegionPresent = true, OriginalRegionGeoId = 68, OriginalRegionFromLegacy = true };
+            Region.DecideOriginal(adopted, null);
+            Check("an absent region overrides what v1 recorded", !adopted.OriginalRegionPresent);
+            Equal("and the adopted number is dropped", 0, adopted.OriginalRegionGeoId);
+            Check("and it no longer claims to come from v1", !adopted.OriginalRegionFromLegacy);
+
+            // A region IS set and v1 says what preceded it. Only v1 knows, because v1
+            // is what overwrote it.
+            var legacy = new State { OriginalRegionPresent = true, OriginalRegionGeoId = 244, OriginalRegionFromLegacy = true };
+            Region.DecideOriginal(legacy, 68);
+            Equal("a v1 record survives when a region is actually set", 244, legacy.OriginalRegionGeoId);
+            Check("and is still marked as coming from v1", legacy.OriginalRegionFromLegacy);
+
+            var fresh = new State();
+            Region.DecideOriginal(fresh, 244);
+            Check("a plain machine's region is recorded", fresh.OriginalRegionPresent);
+            Equal("with the value it actually had", 244, fresh.OriginalRegionGeoId);
+            Check("and is not marked as coming from v1", !fresh.OriginalRegionFromLegacy);
+
+            var empty = new State();
+            Region.DecideOriginal(empty, null);
+            Check("a machine with no region records absent", !empty.OriginalRegionPresent);
+
+            // Once applied, nothing may overwrite the record: a re-apply reads back our
+            // own value, and saving that would lose the way home for good.
+            var applied = new State { AppliedUtc = State.UtcNow(), OriginalRegionPresent = true, OriginalRegionGeoId = 244 };
+            Region.DecideOriginal(applied, 68);
+            Equal("re-applying never overwrites the saved original", 244, applied.OriginalRegionGeoId);
+            Check("and never flips it to absent", applied.OriginalRegionPresent);
+        }
+
+        // -- files that are not what we hoped for --------------------------------
+
+        private static void HostileInputTests()
+        {
+            Section("damaged and unexpected policy files");
+
+            var state = new State();
+
+            // Every one of these must raise, not return something half-built that the
+            // engine would then write into System32.
+            var broken = new[]
+            {
+                new[] { "an empty file", "" },
+                new[] { "only whitespace", "   \n\t " },
+                new[] { "truncated mid-object", "{\"$schema\":\"x\",\"policies\":[{\"guid\":\"{a}\"" },
+                new[] { "an array at the root", "[]" },
+                new[] { "a bare number", "42" },
+                new[] { "HTML from a proxy", "<!doctype html><html><body>Blocked</body></html>" },
+                new[] { "policies that is not an array", "{\"policies\":{\"a\":1}}" },
+                new[] { "no policies key at all", "{\"$schema\":\"x\",\"version\":\"1.0\"}" }
+            };
+            foreach (string[] c in broken)
+            {
+                string name = c[0], text = c[1];
+                Throws<Exception>("a plan is refused from " + name, () => PolicyFile.BuildPlan(text, "IE", state));
+            }
+
+            // Shapes that are strange but legal must be handled, not thrown at.
+            string emptySet = "{\"$schema\":\"x\",\"version\":\"1.0\",\"policies\":[]}";
+            PolicyPlan none = PolicyFile.BuildPlan(emptySet, "IE", state);
+            Equal("a file with no policies plans nothing", 0, none.TotalPolicies);
+            Equal("and takes no gains", 0, none.BenefitsTaken);
+            Check("and still produces a writable document", PolicyFile.Parse(none.Json) != null);
+
+            // An empty policy set is not a source. Treating one as a Windows original
+            // would mean rebuilding from it and wiping the machine's whole policy set;
+            // treating it as ours would report the superset applied to an empty file.
+            Check("an empty policy set is not a Windows original",
+                  !PolicyFile.IsWindowsOriginal(PolicyFile.Parse(emptySet)));
+
+            string liveBefore = File.ReadAllText(Paths.PolicyFile, Encoding.UTF8);
+            try
+            {
+                File.WriteAllText(Paths.PolicyFile, emptySet, new UTF8Encoding(false));
+                Equal("and is never reported as our own rewrite",
+                      PolicyFileOrigin.Unreadable, Backups.ClassifyLive());
+            }
+            finally
+            {
+                File.WriteAllText(Paths.PolicyFile, liveBefore, new UTF8Encoding(false));
+            }
+
+            PolicyPlan unknown = PolicyFile.BuildPlan(
+                "{\"$schema\":\"x\",\"version\":\"1.0\",\"policies\":[" +
+                "{\"guid\":\"{11111111-1111-4111-8111-111111111111}\",\"defaultState\":\"enabled\"," +
+                "\"conditions\":{\"region\":{\"disabled\":[\"IE\"]}}}]}", "IE", state);
+            Equal("a build with none of our policies finds one difference", 1, unknown.DifferingPolicies);
+            Equal("and leaves it unclassified", 1, unknown.Unclassified.Count);
+            Equal("and takes no gains from it", 0, unknown.BenefitsTaken);
+
+            string untouched = null;
+            foreach (JsonValue v in PolicyFile.Policies(PolicyFile.Parse(unknown.Json)).Items)
+                untouched = (v as JsonObject).GetString("defaultState");
+            Equal("an unclassified policy keeps the state Windows shipped", "enabled", untouched);
+
+            // A policy missing defaultState entirely: treated as disabled, never crashing.
+            PolicyPlan partial = PolicyFile.BuildPlan(
+                "{\"policies\":[{\"guid\":\"{22222222-2222-4222-8222-222222222222}\"}]}", "IE", state);
+            Equal("a policy with no state still plans", 1, partial.TotalPolicies);
+            Equal("and counts as no difference", 0, partial.DifferingPolicies);
+
+            // The engine must refuse to build from a file it already wrote, because the
+            // EU states are gone from it and every policy would look identical.
+            PolicyPlan ours = PolicyFile.BuildPlan(Fixture(), "IE", state);
+            Check("our own output is not a Windows original", !PolicyFile.IsWindowsOriginal(PolicyFile.Parse(ours.Json)));
+            PolicyPlan compounded = PolicyFile.BuildPlan(ours.Json, "IE", state);
+            Equal("rebuilding from our own output would find no differences", 0, compounded.DifferingPolicies);
+            Check("which is why Backups.PristineSource exists", Backups.PristineSource() != null);
         }
     }
 }

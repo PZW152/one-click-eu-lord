@@ -97,6 +97,19 @@ namespace EULord.Core
                 Report(progress, "Writing the policy file");
                 SystemFile.WriteAllTextNoBom(Paths.PolicyFile, plan.Json);
 
+                // Read the system file back and make sure it is intact. A write that
+                // was interrupted, truncated, or silently redirected somewhere else
+                // would otherwise leave Windows with a policy file it cannot parse,
+                // and the tool would carry on reporting success. If the check fails,
+                // put the Windows original back before doing anything else.
+                string rollbackProblem;
+                if (!PolicyFileSurvivedWrite(plan.Json, out rollbackProblem))
+                {
+                    result.Problems.Add(rollbackProblem);
+                    RollBackPolicyFile(source, result);
+                    return result;
+                }
+
                 if (SystemFile.HasUtf8Bom(Paths.PolicyFile))
                     result.Problems.Add("the policy file unexpectedly has a byte order mark");
 
@@ -273,6 +286,58 @@ namespace EULord.Core
 
             result.Outcome = result.Problems.Count == 0 ? EngineOutcome.Success : EngineOutcome.Partial;
             return result;
+        }
+
+        /// <summary>
+        /// Re-reads the policy file after writing it and confirms it is the document we
+        /// meant to write. Returns false, with a reason, if anything is off.
+        /// </summary>
+        internal static bool PolicyFileSurvivedWrite(string intended, out string problem)
+        {
+            problem = null;
+            try
+            {
+                string onDisk = SystemFile.ReadAllText(Paths.PolicyFile);
+
+                if (SystemFile.Sha256(onDisk) == SystemFile.Sha256(intended)) return true;
+
+                // Not byte-identical. It may still be the right document -- something
+                // could have normalised the newlines -- so judge it by its content.
+                JsonObject root = PolicyFile.Parse(onDisk);
+                int written = PolicyFile.Policies(root).Count;
+                int expected = PolicyFile.Policies(PolicyFile.Parse(intended)).Count;
+
+                if (written == expected) return true;
+
+                problem = "the policy file holds " + written + " policies after writing, not " + expected;
+                return false;
+            }
+            catch (Exception ex)
+            {
+                problem = "the policy file could not be read back after writing -- " + Log.Describe(ex);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Puts the Windows original back after a failed write, so a machine is never
+        /// left with a policy file this tool damaged.
+        /// </summary>
+        internal static void RollBackPolicyFile(string pristine, EngineResult result)
+        {
+            Log.Error("The policy file did not survive the write; restoring the Windows original");
+            try
+            {
+                SystemFile.WriteAllTextNoBom(Paths.PolicyFile, pristine);
+                PolicyFile.Parse(SystemFile.ReadAllText(Paths.PolicyFile));
+                result.Problems.Add("the Windows original was put back, so nothing was changed");
+                Log.Info("Rollback succeeded: the Windows policy file is back in place");
+            }
+            catch (Exception ex)
+            {
+                result.Problems.Add("the rollback also failed; restore the file by hand from " + Paths.BackupDir);
+                Log.Error("Rollback failed", ex);
+            }
         }
 
         private static void Report(Progress progress, string message)

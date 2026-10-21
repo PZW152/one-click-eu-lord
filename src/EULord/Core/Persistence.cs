@@ -172,31 +172,17 @@ namespace EULord.Core
             return !File.Exists(TaskDefinitionPath(name));
         }
 
+        /// <summary>
+        /// Runs schtasks through Shell.Run, which drains both pipes concurrently.
+        /// Reading one stream to the end before the other deadlocks as soon as the child
+        /// fills the pipe nobody is reading, and a hung tool looks exactly like a broken
+        /// one to whoever is waiting on it.
+        /// </summary>
         private static int RunSchtasks(string arguments)
         {
-            var psi = new ProcessStartInfo(Path.Combine(Paths.SystemDirectory, "schtasks.exe"))
-            {
-                Arguments = arguments,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
-            };
-
-            using (Process process = Process.Start(psi))
-            {
-                if (process == null) return -1;
-                string stdout = process.StandardOutput.ReadToEnd();
-                string stderr = process.StandardError.ReadToEnd();
-                if (!process.WaitForExit(30000))
-                {
-                    Log.Error("schtasks did not finish within 30 seconds");
-                    return -1;
-                }
-                if (process.ExitCode != 0)
-                    Log.Warn("schtasks: " + (stderr.Trim().Length > 0 ? stderr.Trim() : stdout.Trim()));
-                return process.ExitCode;
-            }
+            ProcessResult result = Shell.Run(Path.Combine(Paths.SystemDirectory, "schtasks.exe"), arguments, 30000);
+            if (!result.Ok) Log.Warn("schtasks: " + result.Failure);
+            return result.TimedOut ? -1 : result.ExitCode;
         }
 
         internal static string BuildTaskXml()

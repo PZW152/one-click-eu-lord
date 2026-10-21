@@ -59,11 +59,11 @@ namespace EULord.Core
 
             if (EchoToConsole)
             {
-                try
-                {
-                    if (level == LogLevel.Error) Console.Error.WriteLine(line);
-                    else Console.Out.WriteLine(line);
-                }
+                // Always stderr, never stdout. stdout belongs to the command's own
+                // output: with progress lines mixed in, `--status --json` produced a
+                // stream no parser would accept, which silently broke any script
+                // reading it.
+                try { Console.Error.WriteLine(line); }
                 catch (IOException) { }
             }
 

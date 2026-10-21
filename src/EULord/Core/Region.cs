@@ -128,33 +128,18 @@ namespace EULord.Core
 
                 File.Copy(source, copy, true);
 
-                var psi = new ProcessStartInfo(copy)
-                {
-                    Arguments = "add \"HKLM\\" + KeyPath + "\" /v " + ValueName +
-                                " /t REG_DWORD /d " + geoId.ToString(System.Globalization.CultureInfo.InvariantCulture) + " /f",
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true
-                };
+                // Through Shell.Run, which drains both pipes concurrently. Reading one
+                // to the end before the other deadlocks the moment the child fills the
+                // pipe it is not being read from, and a hung tool is indistinguishable
+                // from a broken one.
+                string arguments = "add \"HKLM\\" + KeyPath + "\" /v " + ValueName + " /t REG_DWORD /d " +
+                                   geoId.ToString(System.Globalization.CultureInfo.InvariantCulture) + " /f";
+                ProcessResult result = Shell.Run(copy, arguments, 20000);
 
-                using (Process process = Process.Start(psi))
-                {
-                    if (process == null) return false;
-                    process.StandardOutput.ReadToEnd();
-                    string stderr = process.StandardError.ReadToEnd();
-                    if (!process.WaitForExit(20000))
-                    {
-                        Log.Error("The fallback write did not finish within 20 seconds");
-                        return false;
-                    }
-                    if (process.ExitCode != 0)
-                    {
-                        Log.Error("The fallback write exited with " + process.ExitCode + " " + stderr.Trim());
-                        return false;
-                    }
-                }
-                return true;
+                if (result.Ok) return true;
+
+                Log.Error("The fallback write failed -- " + result.Failure);
+                return false;
             }
             catch (Exception ex)
             {
@@ -206,15 +191,38 @@ namespace EULord.Core
         /// Records what the region was before we change it, once. Repeat runs must not
         /// overwrite this with our own value.
         /// </summary>
-        public static void RememberOriginal(State state)
-        {
-            if (state.EverApplied || state.OriginalRegionFromLegacy) return;
+        public static void RememberOriginal(State state) { DecideOriginal(state, Read()); }
 
-            int? current = Read();
-            state.OriginalRegionPresent = current.HasValue;
-            state.OriginalRegionGeoId = current.HasValue ? current.Value : 0;
+        /// <summary>
+        /// The decision RememberOriginal makes, separated from the registry so it can be
+        /// tested for every combination of saved state and observed value.
+        /// </summary>
+        internal static void DecideOriginal(State state, int? current)
+        {
+            if (state.EverApplied) return;
+
+            // Nothing cached at all. That is the truth about this machine, and it
+            // outranks anything a v1 install recorded: a v1 state file on a machine
+            // with no DeviceRegion was either never applied or has since been undone,
+            // and trusting its number would make restore *write* a region the machine
+            // never had instead of leaving Windows to work one out.
+            if (!current.HasValue)
+            {
+                state.OriginalRegionPresent = false;
+                state.OriginalRegionGeoId = 0;
+                state.OriginalRegionFromLegacy = false;
+                Log.Info("Original DeviceRegion recorded: absent");
+                return;
+            }
+
+            // A value is present and v1 recorded what preceded it. v1 is the only
+            // thing that knows, because it is what overwrote it.
+            if (state.OriginalRegionFromLegacy) return;
+
+            state.OriginalRegionPresent = true;
+            state.OriginalRegionGeoId = current.Value;
             Log.Info("Original DeviceRegion recorded: " +
-                     (current.HasValue ? current.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "absent"));
+                     current.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
         }
     }
 }
