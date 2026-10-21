@@ -350,7 +350,7 @@ namespace EULord.Core
     internal static class Build
     {
         /// <summary>Kept in step with CHANGELOG.md and the release tag; CI fails if they disagree.</summary>
-        public const string Version = "2.0.0";
+        public const string Version = "2.0.1";
         public const string Repository = "https://github.com/PZW152/one-click-eu-lord";
     }
 }

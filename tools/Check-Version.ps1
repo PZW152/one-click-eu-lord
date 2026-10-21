@@ -3,12 +3,13 @@
     Checks that the version number agrees everywhere it appears.
 
 .DESCRIPTION
-    Three places have to say the same thing, or a release ships claiming to be a
+    Four places have to say the same thing, or a release ships claiming to be a
     version it is not:
 
-      Build.Version in src\EULord\Core\Engine.cs   what the exe reports and logs
-      assemblyIdentity in src\EULord\app.manifest  what Windows sees
-      the newest "## vX.Y.Z" in CHANGELOG.md       what the release notes come from
+      Build.Version in src\EULord\Core\Engine.cs       what the exe reports and logs
+      AssemblyVersion/FileVersion in AssemblyInfo.cs   what the file's Properties show
+      assemblyIdentity in src\EULord\app.manifest      what the side-by-side loader sees
+      the newest "## vX.Y.Z" in CHANGELOG.md           what the release notes come from
 
     With -Tag, the tag being released must match them too.
 
@@ -38,6 +39,24 @@ if ($manifestMatch.Groups[1].Value -ne $version) {
     $problems.Add("app.manifest says $($manifestMatch.Groups[1].Value) but Build.Version says $version")
 }
 
+# --- the version Windows shows in the file's Properties ----------------------
+$assemblyInfoPath = Join-Path $repoRoot 'src\EULord\AssemblyInfo.cs'
+if (-not (Test-Path -LiteralPath $assemblyInfoPath)) { throw "Missing $assemblyInfoPath" }
+$assemblyInfo = [IO.File]::ReadAllText($assemblyInfoPath, [Text.Encoding]::UTF8)
+
+foreach ($attribute in 'AssemblyVersion', 'AssemblyFileVersion') {
+    $m = [regex]::Match($assemblyInfo, [regex]::Escape($attribute) + '\("(\d+\.\d+\.\d+)\.\d+"\)')
+    if (-not $m.Success) { throw "No $attribute found in src\EULord\AssemblyInfo.cs" }
+    if ($m.Groups[1].Value -ne $version) {
+        $problems.Add("$attribute says $($m.Groups[1].Value) but Build.Version says $version")
+    }
+}
+
+$informational = [regex]::Match($assemblyInfo, 'AssemblyInformationalVersion\("([^"]+)"\)')
+if ($informational.Success -and $informational.Groups[1].Value -ne $version) {
+    $problems.Add("AssemblyInformationalVersion says $($informational.Groups[1].Value) but Build.Version says $version")
+}
+
 # --- the newest entry in the changelog ---------------------------------------
 $changelogPath = Join-Path $repoRoot 'CHANGELOG.md'
 $changelog = [IO.File]::ReadAllText($changelogPath, [Text.Encoding]::UTF8)
@@ -60,6 +79,8 @@ if ($Tag) {
 }
 
 Write-Host ("Build.Version      {0}" -f $version)
+Write-Host ("AssemblyInfo       {0}" -f
+    [regex]::Match($assemblyInfo, 'AssemblyFileVersion\("([^"]+)"\)').Groups[1].Value)
 Write-Host ("app.manifest       {0}" -f $manifestMatch.Groups[1].Value)
 Write-Host ("CHANGELOG newest   v{0}" -f $headings[0])
 if ($Tag) { Write-Host ("tag                {0}" -f $Tag) }

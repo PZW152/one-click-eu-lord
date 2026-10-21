@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
-  <assemblyIdentity version="2.0.0.0" name="OneClickEULord.EULord" type="win32" />
+  <assemblyIdentity version="2.0.1.0" name="OneClickEULord.EULord" type="win32" />
 
   <!-- Changing the policy file in System32, the DeviceRegion value and a SYSTEM
        scheduled task all need administrator rights, so the exe asks for them up

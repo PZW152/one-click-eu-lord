@@ -4,6 +4,47 @@
 Each version lists Traditional Chinese, Simplified Chinese and English. The release workflow uses the matching section
 as the release notes.
 
+## v2.0.1 — 2026-10-21
+
+介面與打包的修正，超集邏輯沒有任何改動。
+Interface and packaging fixes. Nothing about the superset itself changed.
+
+**繁體中文**
+
+- **exe 現在有版本資訊了。** v2.0.0 的檔案在 Windows 的「內容 → 詳細資料」裡版本是 `0.0.0.0`，產品名稱、公司、說明全是空白。這支程式沒有程式碼簽章，SmartScreen 本來就會警告；再加上一個連自己是什麼都不肯講的執行檔，等於給人每一個理由就此打住。
+- **捲軸改成自己畫的。** 視窗裡每個控件都是照設計系統做的，右邊卻掛著 WPF 原廠的圓角灰色帶箭頭捲軸。現在是照設計系統畫的細長方塊，沒有箭頭、沒有軌道、疊在右緣不佔頁面寬度，沒東西可捲時自己隱藏。
+- **視窗開啟高度修正。** 原本開起來比自己的內容矮一點，所以一啟動就先看到捲軸。現在的高度放得下整個收合狀態的頁面。
+- **發佈流程補上遺漏的關卡。** `Check-Theme.ps1`（確認 `Theme.cs` 與 `design/tokens.json` 一致）之前只加進 `test.yml`，沒加進 `release.yml`，所以一般推送的檢查反而比發佈嚴格。現在兩邊跑一樣的關卡。
+- `tools/Check-Version.ps1` 現在一併比對 `AssemblyInfo.cs`，四個地方的版本號必須一致。
+
+**简体中文**
+
+- **exe 现在有版本信息了。** v2.0.0 的文件在 Windows 的「属性 → 详细信息」里版本是 `0.0.0.0`，产品名称、公司、说明全是空白。这个程序没有代码签名，SmartScreen 本来就会警告；再加上一个连自己是什么都不肯讲的可执行文件，等于给人每一个理由就此打住。
+- **滚动条改成自己画的。** 窗口里每个控件都是照设计系统做的，右边却挂着 WPF 原厂的圆角灰色带箭头滚动条。现在是照设计系统画的细长方块，没有箭头、没有轨道、叠在右缘不占页面宽度，没东西可滚时自己隐藏。
+- **窗口打开高度修正。** 原本打开时比自己的内容矮一点，所以一启动就先看到滚动条。现在的高度放得下整个收起状态的页面。
+- **发布流程补上遗漏的关卡。** `Check-Theme.ps1`（确认 `Theme.cs` 与 `design/tokens.json` 一致）之前只加进 `test.yml`，没加进 `release.yml`，所以一般推送的检查反而比发布严格。现在两边跑一样的关卡。
+- `tools/Check-Version.ps1` 现在一并比对 `AssemblyInfo.cs`，四个地方的版本号必须一致。
+
+**English**
+
+- **The exe now says what it is.** In v2.0.0, Properties → Details showed version
+  `0.0.0.0` with no product, company or description. There is no code-signing
+  certificate, so SmartScreen warns about it regardless; an executable that also
+  refuses to identify itself gives someone every reason to stop there.
+- **The scroll bar is drawn by the app.** Every other control was built to the
+  design system while the stock WPF bar — rounded, grey, with arrow buttons — sat
+  on the right edge. It is now a thin square thumb with no arrows and no track,
+  laid over the edge rather than taking width from the page, and it hides itself
+  when there is nothing to scroll.
+- **The window opens tall enough for its own content.** It used to open slightly
+  shorter than the collapsed page, so the first thing anyone saw was a scroll bar.
+- **Releases now run every gate.** `Check-Theme.ps1`, which confirms `Theme.cs`
+  still matches `design/tokens.json`, was added to `test.yml` and not to
+  `release.yml`, so an ordinary push was checked more strictly than a release.
+  Both now run the same set.
+- `tools/Check-Version.ps1` also compares `AssemblyInfo.cs`, so all four places
+  that carry the version move together.
+
 ## v2.0.0 — 2026-10-21
 
 完整重寫。v1 的 PowerShell 腳本全部移除，換成單一的 `EULord.exe`。
