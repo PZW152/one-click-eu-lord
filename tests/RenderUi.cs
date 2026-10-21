@@ -56,19 +56,32 @@ namespace EULord.Tests
 
             try
             {
-                int failures = 0;
-                foreach (Lang lang in new[] { Lang.ZhHant, Lang.ZhHans, Lang.En })
+                // A curated set rather than every combination: both themes of the
+                // primary language, the long view, and one shot of each other language
+                // so a translation that overflows its column shows up.
+                var shots = new[]
                 {
-                    S.Current = lang;
-                    foreach (bool expanded in new[] { false, true })
+                    new Shot(Lang.ZhHant, ThemeMode.Light, false),
+                    new Shot(Lang.ZhHant, ThemeMode.Dark, false),
+                    new Shot(Lang.ZhHant, ThemeMode.Light, true),
+                    new Shot(Lang.ZhHant, ThemeMode.Dark, true),
+                    new Shot(Lang.ZhHans, ThemeMode.Light, false),
+                    new Shot(Lang.En, ThemeMode.Light, false),
+                    new Shot(Lang.En, ThemeMode.Dark, true)
+                };
+
+                int failures = 0;
+                foreach (Shot shot in shots)
+                {
+                    S.Current = shot.Lang;
+                    Theme.Mode = shot.Mode;
+                    try { Shoot(shot, outputDir); }
+                    catch (Exception ex)
                     {
-                        try { Shoot(lang, expanded, outputDir); }
-                        catch (Exception ex)
-                        {
-                            failures++;
-                            Console.Error.WriteLine("render failed for " + lang + " expanded=" + expanded +
-                                                    " -- " + ex.GetType().Name + ": " + ex.Message);
-                        }
+                        failures++;
+                        Console.Error.WriteLine("render failed for " + shot.Lang + " " + shot.Mode +
+                                                " expanded=" + shot.Expanded +
+                                                " -- " + ex.GetType().Name + ": " + ex.Message);
                     }
                 }
                 return failures == 0 ? 0 : 1;
@@ -80,12 +93,22 @@ namespace EULord.Tests
             }
         }
 
-        private static void Shoot(Lang lang, bool expanded, string outputDir)
+        /// <summary>One snapshot: a language, a theme, and whether the sections are open.</summary>
+        private sealed class Shot
+        {
+            public readonly Lang Lang;
+            public readonly ThemeMode Mode;
+            public readonly bool Expanded;
+            public Shot(Lang lang, ThemeMode mode, bool expanded) { Lang = lang; Mode = mode; Expanded = expanded; }
+        }
+
+        private static void Shoot(Shot shot, string outputDir)
         {
             var state = new State();
             state.SetOverride("Copilot", PolicyOverride.Eea);
             state.SetOverride("OfficeRecent", PolicyOverride.Eea);
 
+            MainWindow.PinTheme = true;   // render the theme this shot asks for, not the machine's
             var window = new MainWindow(state);
             window.ShowInTaskbar = false;
             window.WindowStartupLocation = WindowStartupLocation.Manual;
@@ -96,7 +119,7 @@ namespace EULord.Tests
             window.Top = -4000;
             window.Show();
 
-            if (expanded)
+            if (shot.Expanded)
             {
                 window.OpenEverySection();
                 window.UpdateLayout();
@@ -106,32 +129,37 @@ namespace EULord.Tests
             window.UpdateLayout();
             Pump();
 
+            FrameworkElement title = window.TitleVisual;
             FrameworkElement page = window.PageVisual;
 
-            // ActualWidth excludes the page's own margin, which is the outer grid, so
-            // add it back or the snapshot shows the content jammed against the edge.
+            // The window itself is clamped to the screen, so the page is rendered at
+            // the full height the scroll viewer arranged it to, with the title bar we
+            // draw ourselves stacked above it.
             Thickness margin = page.Margin;
-            int width = (int)Math.Ceiling(page.ActualWidth + margin.Left + margin.Right);
-            int height = (int)Math.Ceiling(page.ActualHeight + margin.Top + margin.Bottom);
+            int width = (int)Math.Ceiling(Math.Max(title.ActualWidth, page.ActualWidth + margin.Left + margin.Right));
+            int titleHeight = (int)Math.Ceiling(title.ActualHeight);
+            int height = titleHeight + (int)Math.Ceiling(page.ActualHeight + margin.Top + margin.Bottom);
 
-            // The page has no background of its own, so paint the paper first and then
-            // stamp the page over it.
             var composed = new DrawingVisual();
             using (DrawingContext dc = composed.RenderOpen())
             {
-                dc.DrawRectangle(Theme.Paper, null, new Rect(0, 0, width, height));
+                dc.DrawRectangle(Theme.Ground, null, new Rect(0, 0, width, height));
+                dc.DrawRectangle(
+                    new VisualBrush(title) { Stretch = Stretch.None, AlignmentX = AlignmentX.Left, AlignmentY = AlignmentY.Top },
+                    null, new Rect(0, 0, title.ActualWidth, title.ActualHeight));
                 dc.DrawRectangle(
                     new VisualBrush(page) { Stretch = Stretch.None, AlignmentX = AlignmentX.Left, AlignmentY = AlignmentY.Top },
                     null,
-                    new Rect(margin.Left, margin.Top, page.ActualWidth, page.ActualHeight));
+                    new Rect(margin.Left, titleHeight + margin.Top, page.ActualWidth, page.ActualHeight));
             }
 
             var target = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
             target.Render(composed);
 
-            string tag = lang == Lang.ZhHant ? "zh-Hant" : lang == Lang.ZhHans ? "zh-Hans" : "en";
-            string name = string.Format(CultureInfo.InvariantCulture, "ui-{0}-{1}.png",
-                tag, expanded ? "expanded" : "collapsed");
+            string tag = shot.Lang == Lang.ZhHant ? "zh-Hant" : shot.Lang == Lang.ZhHans ? "zh-Hans" : "en";
+            string name = string.Format(CultureInfo.InvariantCulture, "ui-{0}-{1}-{2}.png",
+                tag, shot.Mode == ThemeMode.Dark ? "dark" : "light",
+                shot.Expanded ? "expanded" : "collapsed");
             string path = Path.Combine(outputDir, name);
 
             var encoder = new PngBitmapEncoder();

@@ -1,14 +1,13 @@
-﻿// The four sections behind the headings.
+﻿// The four sections behind the headings, on the lower colour plane.
 //
-// Matters of taste  the 21 Choice policies, each off by default. Ticking one asks
-//                   for the EU state; nothing happens until Apply runs again.
-// Uninstall apps    Microsoft's own apps, removed through their own uninstallers,
+// Matters of taste  the 21 Choice policies, each off until ticked.
+// Uninstall apps    Microsoft's own apps, through their own uninstallers,
 //                   confirmed one at a time, inline, naming the app.
-// Advanced          the country grid and all 68 policies with a three-way override.
+// Advanced          the country grid and all 68 policies, each overridable.
 // Restore           undo, and the explicit full wipe.
 //
-// Work that costs a child process -- the Appx survey -- happens the first time the
-// section opens, not at startup.
+// Work that costs a child process -- the Appx survey -- happens the first time
+// the section opens, never at startup.
 
 using System;
 using System.Collections.Generic;
@@ -23,32 +22,33 @@ namespace EULord.Ui
 {
     internal sealed partial class MainWindow
     {
-        private TextBlock _choicesDirty;
         private StackPanel _appsBody;
         private StackPanel _regionGrid;
         private StackPanel _policyTable;
 
-        /// <summary>Opens every section. Used by the UI snapshot tool.</summary>
+        /// <summary>Where a section's text starts: clear of the tick box column.</summary>
+        private static double ChoiceIndent { get { return CheckRow.TextIndent; } }
+
+        internal FrameworkElement PageVisual { get { return _page; } }
+
+        /// <summary>The title bar, so a snapshot shows the frame we draw ourselves.</summary>
+        internal FrameworkElement TitleVisual { get { return _titleBar; } }
+
         internal void OpenEverySection()
         {
-            foreach (Section section in new[] { _choicesSection, _appsSection, _advancedSection, _restoreSection })
-                section.IsOpen = true;
+            foreach (Section s in new[] { _choicesSection, _appsSection, _advancedSection, _restoreSection })
+                s.IsOpen = true;
         }
-
-        /// <summary>
-        /// The page itself, for the snapshot tool. It is rendered instead of the window
-        /// because Windows clamps a window to the screen, which would clip a long page,
-        /// while the scroll viewer arranges this panel at its full height regardless.
-        /// </summary>
-        internal FrameworkElement PageVisual { get { return _page; } }
 
         private void RefreshSectionSummaries()
         {
             int chosen = _state.SelectedChoices().Count;
-            _choicesSection.Summary = chosen + " / " + Catalog.CountOfClass(PolicyClass.Choice);
+            _choicesSection.Summary = string.Format(CultureInfo.CurrentCulture, S.SecChoicesSummary, chosen,
+                                                    Catalog.CountOfClass(PolicyClass.Choice));
+            _choicesSection.Flag = ChoicesChanged() ? (string)S.PendingApply : null;
 
             int removed = _state.RemovedApps.Count;
-            _appsSection.Summary = removed == 0 ? string.Empty
+            _appsSection.Summary = removed == 0 ? (string)S.SecAppsSummary
                 : string.Format(CultureInfo.CurrentCulture, S.NSelected, removed);
 
             int overridden = _state.Overrides.Count;
@@ -56,24 +56,31 @@ namespace EULord.Ui
                 overridden == 0 ? S.NPolicies : S.NOverridden,
                 overridden == 0 ? Catalog.Count : overridden);
 
-            _restoreSection.Summary = Backups.HasAnyBackup() ? string.Empty : (string)S.NoBackupShort;
+            _restoreSection.Summary = Backups.HasAnyBackup() ? (string)S.RestoreSummary : (string)S.NoBackupShort;
         }
 
-        // -- matters of taste -------------------------------------------------
+        private void MarkPendingApply()
+        {
+            _choicesSection.Flag = ChoicesChanged() ? (string)S.PendingApply : null;
+        }
+
+        private StackPanel SectionLead(string text)
+        {
+            TextBlock lead = Text.Note(text, Theme.Plane1Muted);
+            lead.Margin = new Thickness(ChoiceIndent, 0, Theme.GridMargin, Theme.Space3);
+            lead.MaxWidth = 720;
+
+            var host = new StackPanel();
+            host.Children.Add(lead);
+            return host;
+        }
+
+        // -- matters of taste --------------------------------------------------
 
         private Section BuildChoicesSection()
         {
             var section = new Section(S.SecChoices, string.Empty);
-
-            TextBlock lead = Text.Make(S.SecChoicesLead, Theme.SizeBody, Theme.Mute, FontWeights.Normal);
-            lead.MaxWidth = 660;
-            lead.Margin = new Thickness(0, 0, 0, 16);
-            section.Body.Children.Add(lead);
-
-            _choicesDirty = Text.Make(string.Empty, Theme.SizeMicro, Theme.Red, FontWeights.Bold);
-            _choicesDirty.Margin = new Thickness(0, 0, 0, 12);
-            _choicesDirty.Visibility = Visibility.Collapsed;
-            section.Body.Children.Add(_choicesDirty);
+            section.Body.Children.Add(SectionLead(S.SecChoicesLead));
 
             foreach (CatalogEntry entry in Catalog.OfClass(PolicyClass.Choice))
             {
@@ -81,7 +88,7 @@ namespace EULord.Ui
                 bool ticked = _state.OverrideFor(entry.Id) == PolicyOverride.Eea;
 
                 var row = new CheckRow(entry.Describe(S.Current), EeaDirectionNote(entry), ticked);
-                row.CheckedChanged += (s, e) =>
+                row.CheckedChanged += delegate
                 {
                     _state.SetOverride(captured.Id, row.IsChecked ? PolicyOverride.Eea : PolicyOverride.Auto);
                     TrySaveState();
@@ -89,15 +96,18 @@ namespace EULord.Ui
                     MarkPendingApply();
                     RefreshStatus();
                 };
+                section.Body.Children.Add(Layout.Rule(Theme.Plane1Hair));
                 section.Body.Children.Add(row);
             }
+
+            section.Body.Children.Add(new Border { Height = Theme.Space4, Background = Brushes.Transparent });
             return section;
         }
 
         /// <summary>
-        /// Says which way ticking the box moves this policy. Read from the live file
-        /// rather than assumed, because the EU state is on for some of these and off
-        /// for others, and "tick to turn off" would be wrong half the time.
+        /// Says which way ticking the box moves this policy, read from the live file
+        /// rather than assumed: the EU state is on for some of these and off for
+        /// others, so "tick to turn off" would be wrong half the time.
         /// </summary>
         private string EeaDirectionNote(CatalogEntry entry)
         {
@@ -111,47 +121,39 @@ namespace EULord.Ui
             return string.Empty;
         }
 
-        private void MarkPendingApply()
-        {
-            if (!_state.EverApplied) return;
-            _choicesDirty.Text = S.ReapplySuperset + " — " + S.ApplySuperset;
-            _choicesDirty.Visibility = Visibility.Visible;
-        }
-
-        // -- app removal ------------------------------------------------------
+        // -- app removal -------------------------------------------------------
 
         private Section BuildAppsSection()
         {
             var section = new Section(S.SecApps, string.Empty);
-
-            TextBlock lead = Text.Make(S.SecAppsLead, Theme.SizeBody, Theme.Mute, FontWeights.Normal);
-            lead.MaxWidth = 660;
-            lead.Margin = new Thickness(0, 0, 0, 16);
-            section.Body.Children.Add(lead);
+            section.Body.Children.Add(SectionLead(S.SecAppsLead));
 
             _appsBody = new StackPanel();
             section.Body.Children.Add(_appsBody);
+            section.Body.Children.Add(new Border { Height = Theme.Space4, Background = Brushes.Transparent });
 
-            section.FirstOpened += (s, e) => LoadApps();
+            section.FirstOpened += delegate { LoadApps(); };
             return section;
         }
 
         /// <summary>
-        /// Surveys the installed apps off the UI thread. The result is marshalled back
-        /// with Dispatcher.BeginInvoke rather than by awaiting: this runs from a section
-        /// opening, which can happen before a message loop is pumping, and in that case
-        /// an awaited continuation resumes on a pool thread and faults on the first
-        /// control it touches.
+        /// Surveys the installed apps off the UI thread, marshalling the result back
+        /// with Dispatcher.BeginInvoke rather than awaiting: this runs from a section
+        /// opening, which can happen before a message loop is pumping, and an awaited
+        /// continuation would then resume on a pool thread and fault on the first
+        /// control it touched.
         /// </summary>
         private void LoadApps()
         {
             _appsBody.Children.Clear();
-            _appsBody.Children.Add(Text.Muted(S.Working));
+            _appsBody.Children.Add(Indented(Text.Note(S.Working, Theme.Plane1Muted)));
 
             JsonObject live = PolicyFile.TryReadLive();
-
-            Task.Factory.StartNew(() => AppRemoval.Survey(live)).ContinueWith(task =>
-                Dispatcher.BeginInvoke(new Action(() => ShowApps(task))));
+            Task.Factory.StartNew(new Func<List<AppStatus>>(delegate { return AppRemoval.Survey(live); }))
+                .ContinueWith(delegate(Task<List<AppStatus>> t)
+                {
+                    Dispatcher.BeginInvoke(new Action(delegate { ShowApps(t); }));
+                });
         }
 
         private void ShowApps(Task<List<AppStatus>> survey)
@@ -161,147 +163,145 @@ namespace EULord.Ui
             if (survey.IsFaulted)
             {
                 Log.Error("The app survey failed", survey.Exception);
-                _appsBody.Children.Add(Text.Make(S.Failed, Theme.SizeBody, Theme.Red, FontWeights.Bold));
+                _appsBody.Children.Add(Indented(Text.Note(S.Failed, Theme.RedInk)));
                 return;
             }
 
-            foreach (AppStatus app in survey.Result) _appsBody.Children.Add(BuildAppRow(app));
+            foreach (AppStatus app in survey.Result)
+            {
+                _appsBody.Children.Add(Layout.Rule(Theme.Plane1Hair));
+                _appsBody.Children.Add(BuildAppRow(app));
+            }
+        }
+
+        private FrameworkElement Indented(UIElement content)
+        {
+            var host = new Border { Padding = new Thickness(ChoiceIndent, Theme.Space2, Theme.GridMargin, Theme.Space2) };
+            host.Child = content;
+            return host;
         }
 
         private UIElement BuildAppRow(AppStatus app)
         {
             RemovedApp record = _state.FindRemoved(app.Candidate.Id);
 
-            var name = Text.Body(app.Candidate.DisplayName);
-            name.FontWeight = FontWeights.Bold;
+            TextBlock name = Text.Body(app.Candidate.DisplayName, Theme.Plane1Ink);
+            name.VerticalAlignment = VerticalAlignment.Center;
 
-            string stateText;
-            Brush stateBrush = Theme.Mute;
-
-            if (record != null) { stateText = S.AppRemoved + "  ·  " + record.Method; }
+            string detail;
+            if (record != null) detail = S.AppRemoved + "　" + record.Method;
             else
             {
                 switch (app.Availability)
                 {
-                    case AppAvailability.Removable: stateText = app.Detail; stateBrush = Theme.Ink; break;
-                    case AppAvailability.NotInstalled: stateText = S.AppNotInstalled; break;
-                    case AppAvailability.SystemProtected: stateText = S.AppSystemProtected; break;
-                    case AppAvailability.NoUninstaller: stateText = S.AppNoUninstaller; break;
-                    case AppAvailability.NeedsPolicy: stateText = S.AppNeedsPolicyFirst; stateBrush = Theme.Red; break;
-                    default: stateText = string.Empty; break;
+                    case AppAvailability.Removable: detail = app.Detail; break;
+                    case AppAvailability.NotInstalled: detail = S.AppNotInstalled; break;
+                    case AppAvailability.SystemProtected: detail = S.AppSystemProtected; break;
+                    case AppAvailability.NoUninstaller: detail = S.AppNoUninstaller; break;
+                    case AppAvailability.NeedsPolicy: detail = S.AppNeedsPolicyFirst; break;
+                    default: detail = string.Empty; break;
                 }
             }
 
-            TextBlock detail = Text.Make(stateText, Theme.SizeMicro, stateBrush, FontWeights.Normal);
-            detail.Margin = new Thickness(0, 2, 16, 0);
-
-            var left = new StackPanel();
-            left.Children.Add(name);
-            left.Children.Add(detail);
-
-            if (app.Candidate.ReinstallNote != null &&
-                (app.Availability == AppAvailability.Removable || record != null))
-            {
-                TextBlock note = Text.Make(app.Candidate.ReinstallNote, Theme.SizeMicro, Theme.Faint, FontWeights.Normal);
-                note.Margin = new Thickness(0, 3, 16, 0);
-                note.MaxWidth = 520;
-                left.Children.Add(note);
-            }
+            TextBlock note = Text.Note(detail, app.Availability == AppAvailability.NeedsPolicy
+                ? Theme.RedInk : Theme.Plane1Muted);
+            note.TextWrapping = TextWrapping.NoWrap;
+            note.VerticalAlignment = VerticalAlignment.Center;
 
             var actions = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
-                VerticalAlignment = VerticalAlignment.Top,
-                HorizontalAlignment = HorizontalAlignment.Right
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Center
             };
 
-            var grid = new Grid { Margin = new Thickness(0, 0, 0, 14) };
+            var extra = new StackPanel();
+
+            // Auto, star, Auto: the name and the buttons get exactly what they
+            // need and the note absorbs the rest, so nothing can squeeze a sibling.
+            var grid = new Grid { MinHeight = Theme.ChoiceRow };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            Grid.SetColumn(left, 0);
-            Grid.SetColumn(actions, 1);
-            grid.Children.Add(left);
+            note.Margin = new Thickness(Theme.Gutter, 0, Theme.Gutter, 0);
+            Grid.SetColumn(name, 0);
+            Grid.SetColumn(note, 1);
+            Grid.SetColumn(actions, 2);
+            grid.Children.Add(name);
+            grid.Children.Add(note);
             grid.Children.Add(actions);
+
+            var row = new StackPanel { Margin = new Thickness(ChoiceIndent, 0, Theme.GridMargin, 0) };
+            row.Children.Add(grid);
+            row.Children.Add(extra);
 
             if (record != null)
             {
                 if (!string.IsNullOrEmpty(app.Candidate.ReinstallUri))
                 {
-                    var reinstall = new LinkButton(S.AppReinstall, Theme.SizeBody);
-                    reinstall.Activated += (s, e) => AppRemoval.OpenReinstall(app.Candidate);
+                    var reinstall = new LinkButton(S.AppReinstall, Theme.Plane1Ink, Theme.Plane1Hair);
+                    reinstall.Activated += delegate { AppRemoval.OpenReinstall(app.Candidate); };
                     actions.Children.Add(reinstall);
                 }
-                return grid;
+                return row;
             }
 
-            if (!app.CanUninstall) return grid;
+            if (!app.CanUninstall) return row;
 
-            var uninstall = new LinkButton(S.AppUninstall, Theme.SizeBody);
-            uninstall.Activated += (s, e) => ConfirmUninstall(app, left, actions, uninstall);
+            var uninstall = new LinkButton(S.AppUninstall, Theme.Plane1Ink, Theme.Plane1Hair);
+            uninstall.Activated += delegate { ConfirmUninstall(app, extra, actions, uninstall); };
             actions.Children.Add(uninstall);
-            return grid;
+            return row;
         }
 
         /// <summary>
-        /// The per-app confirmation the user asked for: inline, naming the app, and never
-        /// a single confirmation covering several.
+        /// The per-app confirmation: inline, naming the app and the exact command,
+        /// and never one confirmation covering several.
         /// </summary>
-        private void ConfirmUninstall(AppStatus app, StackPanel left, StackPanel actions, UIElement trigger)
+        private void ConfirmUninstall(AppStatus app, StackPanel extra, StackPanel actions, UIElement trigger)
         {
             actions.Children.Remove(trigger);
+            extra.Children.Clear();
 
-            TextBlock question = Text.Make(
-                string.Format(CultureInfo.CurrentCulture, S.AppConfirm, app.Candidate.DisplayName),
-                Theme.SizeMicro, Theme.Red, FontWeights.Bold);
-            question.Margin = new Thickness(0, 6, 16, 0);
-            question.MaxWidth = 520;
-            left.Children.Add(question);
+            TextBlock question = Text.Note(
+                string.Format(CultureInfo.CurrentCulture, S.AppConfirm, app.Candidate.DisplayName), Theme.RedInk);
+            question.Margin = new Thickness(0, 0, 0, Theme.Space1);
+            extra.Children.Add(question);
 
             if (app.Candidate.Route == AppRoute.Registered)
-            {
-                TextBlock window = Text.Make(S.AppUninstallerWindow, Theme.SizeMicro, Theme.Mute, FontWeights.Normal);
-                window.Margin = new Thickness(0, 3, 16, 0);
-                window.MaxWidth = 520;
-                left.Children.Add(window);
-            }
+                extra.Children.Add(Text.Micro(S.AppUninstallerWindow, Theme.Plane1Muted));
 
-            TextBlock command = Text.Make(app.Handle, Theme.SizeMicro, Theme.Faint, FontWeights.Normal);
-            command.Margin = new Thickness(0, 3, 16, 0);
-            command.MaxWidth = 520;
-            left.Children.Add(command);
+            TextBlock command = Text.Micro(app.Handle, Theme.Plane1Muted);
+            command.Margin = new Thickness(0, Theme.Space1, 0, Theme.Space3);
+            extra.Children.Add(command);
 
-            var cancel = new LinkButton(S.Cancel, Theme.SizeBody) { Margin = new Thickness(0, 0, 16, 0) };
-            var confirm = new LinkButton(S.Confirm, Theme.SizeBody);
+            var cancel = new LinkButton(S.Cancel, Theme.Plane1Ink, Theme.Plane1Hair)
+            { Margin = new Thickness(0, 0, Theme.Space4, 0) };
+            var confirm = new LinkButton(S.Confirm, Theme.RedInk, Theme.Plane1Hair);
 
-            cancel.Activated += (s, e) => LoadApps();
-            confirm.Activated += async (s, e) =>
+            cancel.Activated += delegate { LoadApps(); };
+            confirm.Activated += async delegate
             {
                 actions.Children.Clear();
-                actions.Children.Add(Text.Muted(S.Working));
+                actions.Children.Add(Text.Note(S.Working, Theme.Plane1Muted));
 
                 string message = null;
-                bool ok = await Task.Run(() =>
+                bool ok = await Task.Run(new Func<bool>(delegate
                 {
                     string inner;
                     bool done = AppRemoval.Uninstall(app, _state, out inner);
                     message = inner;
                     return done;
-                });
+                }));
 
                 if (ok) TrySaveState();
 
                 actions.Children.Clear();
-                TextBlock outcome = Text.Make(ok ? S.AppRemoved : S.Failed, Theme.SizeBody,
-                                              ok ? Theme.Ink : Theme.Red, FontWeights.Bold);
-                actions.Children.Add(outcome);
+                actions.Children.Add(Text.Note(ok ? S.AppRemoved : S.Failed, ok ? Theme.Plane1Ink : Theme.RedInk));
 
+                extra.Children.Clear();
                 if (!ok && !string.IsNullOrEmpty(message))
-                {
-                    TextBlock reason = Text.Make(message, Theme.SizeMicro, Theme.Red, FontWeights.Normal);
-                    reason.Margin = new Thickness(0, 6, 16, 0);
-                    reason.MaxWidth = 520;
-                    left.Children.Add(reason);
-                }
+                    extra.Children.Add(Text.Micro(message, Theme.RedInk));
 
                 RefreshSectionSummaries();
             };
@@ -310,32 +310,20 @@ namespace EULord.Ui
             actions.Children.Add(confirm);
         }
 
-        // -- advanced ---------------------------------------------------------
+        // -- advanced -----------------------------------------------------------
 
         private Section BuildAdvancedSection()
         {
             var section = new Section(S.SecAdvanced, string.Empty);
+            section.Body.Children.Add(SectionLead(
+                string.Format(CultureInfo.CurrentCulture, S.SecAdvancedLead, Catalog.Count)));
 
-            TextBlock lead = Text.Make(
-                string.Format(CultureInfo.CurrentCulture, S.SecAdvancedLead, Catalog.Count),
-                Theme.SizeBody, Theme.Mute, FontWeights.Normal);
-            lead.MaxWidth = 660;
-            lead.Margin = new Thickness(0, 0, 0, 20);
-            section.Body.Children.Add(lead);
-
-            section.Body.Children.Add(Text.Micro(S.RegionLabel, Theme.Mute));
-            TextBlock regionHint = Text.Make(S.RegionHint, Theme.SizeMicro, Theme.Faint, FontWeights.Normal);
-            regionHint.MaxWidth = 660;
-            regionHint.Margin = new Thickness(0, 6, 0, 10);
-            section.Body.Children.Add(regionHint);
-
-            _regionGrid = new StackPanel { Margin = new Thickness(0, 0, 0, 24) };
+            _regionGrid = new StackPanel { Margin = new Thickness(Theme.GridMargin, 0, Theme.GridMargin, Theme.Space6) };
+            _policyTable = new StackPanel { Margin = new Thickness(Theme.GridMargin, 0, Theme.GridMargin, Theme.Space4) };
             section.Body.Children.Add(_regionGrid);
-
-            _policyTable = new StackPanel();
             section.Body.Children.Add(_policyTable);
 
-            section.FirstOpened += (s, e) =>
+            section.FirstOpened += delegate
             {
                 BuildRegionGrid();
                 BuildPolicyTable();
@@ -344,58 +332,59 @@ namespace EULord.Ui
         }
 
         /// <summary>
-        /// A grid of country modules rather than a dropdown: the EEA list comes from the
-        /// policy file itself, so it stays correct as Microsoft changes it.
+        /// A grid of country modules rather than a dropdown: the EEA list comes from
+        /// the policy file itself, so it stays correct as Microsoft changes it.
         /// </summary>
         private void BuildRegionGrid()
         {
             _regionGrid.Children.Clear();
+            _regionGrid.Children.Add(Text.Micro(S.RegionLabel, Theme.Plane1Muted));
+
+            TextBlock hint = Text.Micro(S.RegionHint, Theme.Plane1Muted);
+            hint.Margin = new Thickness(0, Theme.Space1, 0, Theme.Space3);
+            hint.MaxWidth = 660;
+            _regionGrid.Children.Add(hint);
 
             IList<string> codes = _plan != null ? _plan.EeaCodes : new List<string> { Native.IrelandIso2 };
             var ordered = new List<string>(codes);
             ordered.Remove(Native.IrelandIso2);
-            ordered.Insert(0, Native.IrelandIso2);          // Ireland first; it is the default for a reason
+            ordered.Insert(0, Native.IrelandIso2);     // Ireland first; it is the default for a reason
 
             var wrap = new WrapPanel();
             foreach (string iso in ordered)
             {
                 int geoId = Native.GeoIdOf(iso);
                 if (geoId == 0) continue;
-
-                string captured = iso;
-                bool selected = string.Equals(_state.RegionIso, iso, StringComparison.OrdinalIgnoreCase);
-                wrap.Children.Add(BuildRegionChip(iso, geoId, selected, captured));
+                wrap.Children.Add(BuildRegionChip(iso, geoId));
             }
             _regionGrid.Children.Add(wrap);
         }
 
-        private UIElement BuildRegionChip(string iso, int geoId, bool selected, string captured)
+        private UIElement BuildRegionChip(string iso, int geoId)
         {
-            var code = Text.Make(iso, Theme.SizeBody, selected ? Theme.Paper : Theme.Ink, FontWeights.Bold);
-            code.TextWrapping = TextWrapping.NoWrap;
+            bool selected = string.Equals(_state.RegionIso, iso, StringComparison.OrdinalIgnoreCase);
 
-            var name = Text.Make(Native.FriendlyNameOf(geoId) ?? string.Empty, Theme.SizeMicro,
-                                 selected ? Theme.Paper : Theme.Mute, FontWeights.Normal);
+            TextBlock code = Text.MicroStrong(iso, selected ? Theme.Plane1 : Theme.Plane1Ink);
+            TextBlock name = Text.Micro(Native.FriendlyNameOf(geoId) ?? string.Empty,
+                                        selected ? Theme.Plane1 : Theme.Plane1Muted);
             name.TextWrapping = TextWrapping.NoWrap;
-            name.MaxWidth = 104;
             name.TextTrimming = TextTrimming.CharacterEllipsis;
+            name.MaxWidth = 92;
 
             var stack = new StackPanel();
             stack.Children.Add(code);
             stack.Children.Add(name);
 
-            var chip = new RegionChip
+            var chip = new RegionChip(selected)
             {
                 Child = stack,
-                Width = 118,
-                Padding = new Thickness(9, 7, 9, 7),
-                Margin = new Thickness(0, 0, 6, 6),
-                Background = selected ? Theme.Ink : Theme.Paper,
-                BorderBrush = selected ? Theme.Ink : Theme.Rule,
-                BorderThickness = new Thickness(1)
+                Width = 112,
+                Padding = new Thickness(Theme.Space2 - 2, Theme.Space2 - 2, Theme.Space2 - 2, Theme.Space2 - 2),
+                Margin = new Thickness(0, 0, 4, 4)
             };
 
-            chip.Activated += (s, e) =>
+            string captured = iso;
+            chip.Activated += delegate
             {
                 _state.RegionIso = captured;
                 _state.RegionGeoId = geoId;
@@ -411,11 +400,15 @@ namespace EULord.Ui
 
         private sealed class RegionChip : Pressable
         {
+            private readonly bool _on;
+            public RegionChip(bool on) { _on = on; Repaint(); }
+
             protected override void Repaint()
             {
-                if (Hovered && !(Background == Theme.Ink)) BorderBrush = Theme.Red;
-                else if (!(Background == Theme.Ink)) BorderBrush = Theme.Rule;
-                BorderThickness = new Thickness(IsKeyboardFocused ? 2 : 1);
+                PaintFocus();
+                if (_on) { Background = Theme.Plane1Ink; return; }
+                Background = Hovered ? Theme.Hover1 : Brushes.Transparent;
+                if (!IsKeyboardFocused) BorderBrush = Theme.Plane1Hair;
             }
         }
 
@@ -424,31 +417,31 @@ namespace EULord.Ui
             _policyTable.Children.Clear();
             if (_plan == null)
             {
-                _policyTable.Children.Add(Text.Muted(S.PolicyMissing));
+                _policyTable.Children.Add(Text.Note(S.PolicyMissing, Theme.Plane1Muted));
                 return;
             }
 
             _policyTable.Children.Add(BuildPolicyHeader());
-            _policyTable.Children.Add(Theme.HairRule(1, Theme.Ink, 6, 0));
+            _policyTable.Children.Add(new Border { Height = 2, Background = Theme.Plane1Ink, SnapsToDevicePixels = true });
 
             foreach (PolicyDecision decision in _plan.Decisions)
             {
-                if (decision.Entry == null) continue;          // unclassified rows are listed separately
+                if (decision.Entry == null) continue;    // unclassified rows are listed below
                 _policyTable.Children.Add(BuildPolicyRow(decision));
+                _policyTable.Children.Add(Layout.Rule(Theme.Plane1Hair));
             }
 
             if (_plan.Unclassified.Count == 0) return;
 
-            _policyTable.Children.Add(Theme.HairRule(1, Theme.Rule, 14, 10));
-            TextBlock unclassified = Text.Make(
-                string.Format(CultureInfo.CurrentCulture, S.NUnclassified, _plan.Unclassified.Count),
-                Theme.SizeMicro, Theme.Red, FontWeights.Bold);
+            TextBlock unclassified = Text.MicroStrong(
+                string.Format(CultureInfo.CurrentCulture, S.NUnclassified, _plan.Unclassified.Count), Theme.RedInk);
+            unclassified.Margin = new Thickness(0, Theme.Space3, 0, 0);
             _policyTable.Children.Add(unclassified);
 
             foreach (string guid in _plan.Unclassified)
             {
-                TextBlock line = Text.Make(guid, Theme.SizeMicro, Theme.Faint, FontWeights.Normal);
-                line.Margin = new Thickness(0, 3, 0, 0);
+                TextBlock line = Text.Micro(guid, Theme.Plane1Muted);
+                line.Margin = new Thickness(0, Theme.Space1, 0, 0);
                 _policyTable.Children.Add(line);
             }
         }
@@ -457,20 +450,22 @@ namespace EULord.Ui
         {
             var grid = new Grid();
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(78) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(52) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(52) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(176) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(74) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(48) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(48) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(190) });
             return grid;
         }
 
         private UIElement BuildPolicyHeader()
         {
             Grid grid = PolicyGrid();
+            grid.Height = 26;
             string[] heads = { S.ColPolicy, S.ColClass, S.ColGlobal, S.ColEea, S.ColTarget };
             for (int i = 0; i < heads.Length; i++)
             {
-                TextBlock head = Text.Micro(heads[i], Theme.Mute);
+                TextBlock head = Text.Micro(heads[i], Theme.Plane1Muted);
+                head.VerticalAlignment = VerticalAlignment.Bottom;
                 Grid.SetColumn(head, i);
                 grid.Children.Add(head);
             }
@@ -480,28 +475,31 @@ namespace EULord.Ui
         private UIElement BuildPolicyRow(PolicyDecision decision)
         {
             Grid grid = PolicyGrid();
-            grid.Margin = new Thickness(0, 9, 0, 9);
+            grid.MinHeight = Theme.ChoiceRow;
 
-            var title = new StackPanel();
-            title.Children.Add(Text.Body(decision.Entry.Describe(S.Current)));
-            TextBlock id = Text.Make(decision.Entry.Id, Theme.SizeMicro, Theme.Faint, FontWeights.Normal);
-            id.Margin = new Thickness(0, 2, 12, 0);
+            var title = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            title.Children.Add(Text.Body(decision.Entry.Describe(S.Current), Theme.Plane1Ink));
+            TextBlock id = Text.Micro(decision.Entry.Id, Theme.Plane1Muted);
+            id.Margin = new Thickness(0, 1, Theme.Space3, 0);
             title.Children.Add(id);
 
             L className = decision.Entry.Class == PolicyClass.Benefit ? S.ClassBenefit
                         : decision.Entry.Class == PolicyClass.Loss ? S.ClassLoss : S.ClassChoice;
-            TextBlock classText = Text.Make(className, Theme.SizeMicro,
-                decision.Entry.Class == PolicyClass.Loss ? Theme.Red : Theme.Mute, FontWeights.Normal);
+            TextBlock classText = Text.Micro(className,
+                decision.Entry.Class == PolicyClass.Loss ? Theme.RedInk : Theme.Plane1Muted);
+            classText.VerticalAlignment = VerticalAlignment.Center;
 
-            TextBlock globalText = StateCell(decision.GlobalState, Theme.Mute);
-            TextBlock eeaText = StateCell(decision.EeaState, Theme.Mute);
+            TextBlock globalText = StateCell(decision.GlobalState);
+            TextBlock eeaText = StateCell(decision.EeaState);
 
             int selected = decision.Override == PolicyOverride.Eea ? 1
                          : decision.Override == PolicyOverride.Global ? 2 : 0;
-            var switcher = new Segmented(new[] { (string)S.OverrideAuto, (string)S.OverrideEea, (string)S.OverrideGlobal }, selected);
+            var switcher = new Segmented(
+                new[] { (string)S.OverrideAuto, (string)S.OverrideEea, (string)S.OverrideGlobal }, selected);
+            switcher.VerticalAlignment = VerticalAlignment.Center;
 
             string entryId = decision.Entry.Id;
-            switcher.SelectionChanged += (s, e) =>
+            switcher.SelectionChanged += delegate
             {
                 PolicyOverride value = switcher.Selected == 1 ? PolicyOverride.Eea
                                      : switcher.Selected == 2 ? PolicyOverride.Global : PolicyOverride.Auto;
@@ -523,75 +521,79 @@ namespace EULord.Ui
             grid.Children.Add(globalText);
             grid.Children.Add(eeaText);
             grid.Children.Add(switcher);
-
-            var row = new StackPanel();
-            row.Children.Add(grid);
-            row.Children.Add(Theme.HairRule(1, Theme.Rule, 0, 0));
-            return row;
+            return grid;
         }
 
-        private static TextBlock StateCell(string state, Brush brush)
+        private static TextBlock StateCell(string state)
         {
             bool on = string.Equals(state, PolicyStates.Enabled, StringComparison.OrdinalIgnoreCase);
-            TextBlock cell = Text.Make(on ? S.StateEnabled : S.StateDisabled, Theme.SizeMicro, brush, FontWeights.Normal);
+            TextBlock cell = Text.Micro(on ? S.StateEnabled : S.StateDisabled, Theme.Plane1Muted);
             cell.TextWrapping = TextWrapping.NoWrap;
+            cell.VerticalAlignment = VerticalAlignment.Center;
             return cell;
         }
 
-        // -- restore ----------------------------------------------------------
+        // -- restore -------------------------------------------------------------
 
         private Section BuildRestoreSection()
         {
             var section = new Section(S.SecRestore, string.Empty);
 
-            section.Body.Children.Add(Text.Make(S.RestoreTitle, Theme.SizeBody, Theme.Ink, FontWeights.Bold));
-            TextBlock restoreLead = Text.Make(S.RestoreLead, Theme.SizeMicro, Theme.Mute, FontWeights.Normal);
+            var body = new StackPanel { Margin = new Thickness(Theme.GridMargin, 0, Theme.GridMargin, Theme.Space4) };
+
+            body.Children.Add(Text.Section(S.RestoreTitle, Theme.Plane1Ink));
+            TextBlock restoreLead = Text.Note(S.RestoreLead, Theme.Plane1Muted);
             restoreLead.MaxWidth = 660;
-            restoreLead.Margin = new Thickness(0, 5, 0, 10);
-            section.Body.Children.Add(restoreLead);
+            restoreLead.Margin = new Thickness(0, Theme.Space1, 0, Theme.Space2);
+            body.Children.Add(restoreLead);
 
             var restorePanel = new StackPanel();
-            var restoreButton = new LinkButton(S.RestoreButton, Theme.SizeBody);
-            restoreButton.Activated += async (s, e) =>
+            var restoreButton = new LinkButton(S.RestoreButton, Theme.Plane1Ink, Theme.Plane1Hair);
+            restoreButton.Activated += async delegate
             {
                 if (_busy) return;
                 SetBusy(true);
                 restorePanel.Children.Clear();
 
-                var progress = new Progress(message => Dispatcher.BeginInvoke(
-                    new Action(() => { _progressLine.Text = message + " …"; })));
-                EngineResult result = await Task.Run(() => Engine.Restore(_state, progress));
+                EngineResult result = await Task.Run(new Func<EngineResult>(
+                    delegate { return Engine.Restore(_state, null); }));
 
                 _plan = Engine.Preview(_state);
+                _appliedChoices = 0;
                 SetBusy(false);
                 restorePanel.Children.Add(OutcomeLine(result, S.DoneRestored));
                 RefreshStatus();
+                PaintSegments(false, true);
             };
-            section.Body.Children.Add(restoreButton);
-            section.Body.Children.Add(restorePanel);
+            body.Children.Add(restoreButton);
+            body.Children.Add(restorePanel);
 
-            section.Body.Children.Add(Theme.HairRule(1, Theme.Rule, 22, 16));
+            body.Children.Add(new Border
+            {
+                Height = 1, Background = Theme.Plane1Hair,
+                Margin = new Thickness(0, Theme.Space6, 0, Theme.Space4), SnapsToDevicePixels = true
+            });
 
-            section.Body.Children.Add(Text.Make(S.PurgeTitle, Theme.SizeBody, Theme.Red, FontWeights.Bold));
-            TextBlock purgeLead = Text.Make(
-                string.Format(CultureInfo.CurrentCulture, S.PurgeLead, Paths.DataRoot),
-                Theme.SizeMicro, Theme.Mute, FontWeights.Normal);
+            body.Children.Add(Text.Section(S.PurgeTitle, Theme.RedInk));
+            TextBlock purgeLead = Text.Note(
+                string.Format(CultureInfo.CurrentCulture, S.PurgeLead, Paths.DataRoot), Theme.Plane1Muted);
             purgeLead.MaxWidth = 660;
-            purgeLead.Margin = new Thickness(0, 5, 0, 10);
-            section.Body.Children.Add(purgeLead);
+            purgeLead.Margin = new Thickness(0, Theme.Space1, 0, Theme.Space2);
+            body.Children.Add(purgeLead);
 
             var purgePanel = new StackPanel();
-            section.Body.Children.Add(purgePanel);
+            body.Children.Add(purgePanel);
             BuildPurgeTrigger(purgePanel);
 
+            section.Body.Children.Add(body);
             return section;
         }
 
         private void BuildPurgeTrigger(StackPanel host)
         {
             host.Children.Clear();
-            var button = new LinkButton(S.PurgeButton, Theme.SizeBody);
-            button.Activated += (s, e) => BuildPurgeConfirm(host);
+            var button = new LinkButton(S.PurgeButton, Theme.Plane1Ink, Theme.Plane1Hair);
+            button.Activated += delegate { BuildPurgeConfirm(host); };
             host.Children.Add(button);
         }
 
@@ -599,32 +601,33 @@ namespace EULord.Ui
         {
             host.Children.Clear();
 
-            TextBlock question = Text.Make(
-                string.Format(CultureInfo.CurrentCulture, S.PurgeConfirm, Paths.DataRoot),
-                Theme.SizeBody, Theme.Red, FontWeights.Bold);
+            TextBlock question = Text.Body(
+                string.Format(CultureInfo.CurrentCulture, S.PurgeConfirm, Paths.DataRoot), Theme.RedInk);
             question.MaxWidth = 660;
-            question.Margin = new Thickness(0, 0, 0, 10);
+            question.Margin = new Thickness(0, 0, 0, Theme.Space2);
             host.Children.Add(question);
 
             var row = new StackPanel { Orientation = Orientation.Horizontal };
-            var cancel = new LinkButton(S.Cancel, Theme.SizeBody) { Margin = new Thickness(0, 0, 20, 0) };
-            var confirm = new LinkButton(S.PurgeButton, Theme.SizeBody);
+            var cancel = new LinkButton(S.Cancel, Theme.Plane1Ink, Theme.Plane1Hair)
+            { Margin = new Thickness(0, 0, Theme.Space4, 0) };
+            var confirm = new LinkButton(S.PurgeButton, Theme.RedInk, Theme.Plane1Hair);
 
-            cancel.Activated += (s, e) => BuildPurgeTrigger(host);
-            confirm.Activated += async (s, e) =>
+            cancel.Activated += delegate { BuildPurgeTrigger(host); };
+            confirm.Activated += async delegate
             {
                 if (_busy) return;
                 SetBusy(true);
                 host.Children.Clear();
 
-                var progress = new Progress(message => Dispatcher.BeginInvoke(
-                    new Action(() => { _progressLine.Text = message + " …"; })));
-                EngineResult result = await Task.Run(() => Engine.Purge(_state, progress));
+                EngineResult result = await Task.Run(new Func<EngineResult>(
+                    delegate { return Engine.Purge(_state, null); }));
 
                 _plan = Engine.Preview(_state);
+                _appliedChoices = 0;
                 SetBusy(false);
                 host.Children.Add(OutcomeLine(result, S.DonePurged));
                 RefreshStatus();
+                PaintSegments(false, true);
             };
 
             row.Children.Add(cancel);
@@ -634,23 +637,105 @@ namespace EULord.Ui
 
         private static UIElement OutcomeLine(EngineResult result, L successWord)
         {
-            var stack = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
+            var stack = new StackPanel { Margin = new Thickness(0, Theme.Space2, 0, 0) };
 
             L headline = result.Outcome == EngineOutcome.Success ? successWord
                        : result.Outcome == EngineOutcome.NeedsElevation ? S.NeedAdmin
                        : result.Outcome == EngineOutcome.Partial ? S.StatusPartial : S.Failed;
 
-            stack.Children.Add(Text.Make(headline, Theme.SizeBody,
-                result.Outcome == EngineOutcome.Success ? Theme.Ink : Theme.Red, FontWeights.Bold));
+            stack.Children.Add(Text.Body(headline,
+                result.Outcome == EngineOutcome.Success ? Theme.Plane1Ink : Theme.RedInk));
 
             foreach (string problem in result.Problems)
             {
-                TextBlock line = Text.Make("· " + problem, Theme.SizeMicro, Theme.Mute, FontWeights.Normal);
-                line.Margin = new Thickness(0, 4, 0, 0);
+                TextBlock line = Text.Micro("· " + problem, Theme.Plane1Muted);
+                line.Margin = new Thickness(0, Theme.Space1, 0, 0);
                 line.MaxWidth = 660;
                 stack.Children.Add(line);
             }
             return stack;
+        }
+    }
+
+    /// <summary>
+    /// The three-way override. Index 0 is the resting choice and is drawn quietly:
+    /// across 68 rows the default is nearly every row, and filling them all would be
+    /// a wall of ink. Any other selection is a deliberate override and takes the
+    /// accent, so the few changed rows are the ones that stand out.
+    /// </summary>
+    internal sealed class Segmented : StackPanel
+    {
+        private readonly List<Segment> _segments = new List<Segment>();
+        private readonly List<TextBlock> _labels = new List<TextBlock>();
+        private int _selected;
+
+        public event EventHandler SelectionChanged;
+
+        public Segmented(string[] captions, int selected)
+        {
+            Orientation = Orientation.Horizontal;
+            _selected = selected;
+
+            for (int i = 0; i < captions.Length; i++)
+            {
+                int index = i;
+                TextBlock label = Text.Micro(captions[i], Theme.Plane1Muted);
+                label.TextWrapping = TextWrapping.NoWrap;
+                label.HorizontalAlignment = HorizontalAlignment.Center;
+                label.VerticalAlignment = VerticalAlignment.Center;
+
+                var segment = new Segment(this)
+                {
+                    Child = label,
+                    Padding = new Thickness(Theme.Space2 - 1, Theme.Space1 - 2, Theme.Space2 - 1, Theme.Space1 - 2),
+                    Margin = new Thickness(i == 0 ? 0 : -1, 0, 0, 0)
+                };
+                segment.Activated += delegate { Selected = index; };
+
+                _segments.Add(segment);
+                _labels.Add(label);
+                Children.Add(segment);
+            }
+            Paint();
+        }
+
+        public int Selected
+        {
+            get { return _selected; }
+            set
+            {
+                if (_selected == value) return;
+                _selected = value;
+                Paint();
+                EventHandler h = SelectionChanged;
+                if (h != null) h(this, EventArgs.Empty);
+            }
+        }
+
+        internal void Paint()
+        {
+            bool overridden = _selected != 0;
+
+            for (int i = 0; i < _segments.Count; i++)
+            {
+                bool on = i == _selected;
+                Segment segment = _segments[i];
+
+                segment.Background = on && overridden ? Theme.Red : Brushes.Transparent;
+                segment.BorderBrush = segment.IsKeyboardFocused ? Theme.Focus
+                                    : (on && overridden ? Theme.Red : Theme.Plane1Hair);
+                segment.BorderThickness = new Thickness(1);
+
+                _labels[i].Foreground = on ? (overridden ? Theme.OnRed : Theme.Plane1Ink) : Theme.Plane1Muted;
+                _labels[i].FontWeight = FontWeight.FromOpenTypeWeight(on ? 700 : 400);
+            }
+        }
+
+        private sealed class Segment : Pressable
+        {
+            private readonly Segmented _owner;
+            public Segment(Segmented owner) { _owner = owner; }
+            protected override void Repaint() { if (_owner != null) _owner.Paint(); }
         }
     }
 }

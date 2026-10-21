@@ -1,13 +1,15 @@
 ﻿// The window.
 //
-// One page. The things everyone needs -- what state this machine is in, and the
-// button that changes it -- are always visible. Everything else is behind a
-// heading that opens: matters of taste, app removal, the full policy table,
-// restore. A first-time user can finish the job without opening any of them.
+// Swiss direction two, "colour planes": depth comes from two flat planes
+// overlapping on the 12-column grid, not from shadow or blur. The lower plane
+// carries what the machine looks like now; the upper plane, sitting across it and
+// bleeding off the right edge, carries the number and the one action. When the
+// superset takes effect the upper plane slides one column left -- the single piece
+// of motion in the product that moves a plane, and it means something: the thing
+// you pressed has engaged.
 //
-// The display element is the count of gains actually in effect, because that is
-// the number the whole tool exists to move. It is content, not decoration: it
-// changes when the machine changes.
+// Below them, 68 segments: 40 gains, 21 matters of taste, 7 losses hatched out
+// because they are kept rather than taken. Then everything else, behind headings.
 
 using System;
 using System.Collections.Generic;
@@ -17,6 +19,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Threading;
 using EULord.Core;
 
 namespace EULord.Ui
@@ -25,228 +29,352 @@ namespace EULord.Ui
     {
         private readonly State _state;
         private PolicyPlan _plan;
-        private VerifyReport _lastReport;
         private bool _busy;
+        private int _appliedChoices;
 
+        private TitleBar _titleBar;
         private StackPanel _page;
-        private TextBlock _numeral;
-        private TextBlock _statusWord;
+        private Border _plane2;
+        private TranslateTransform _plane2Shift;
+        private TextBlock _count, _countUnit, _headline, _sub;
         private StackPanel _readout;
-        private PrimaryButton _applyButton;
-        private TextBlock _progressLine;
+        private ActionButton _apply;
         private StackPanel _resultPanel;
+        private readonly List<Border> _segments = new List<Border>();
+        private StackPanel _legend;
 
-        private Section _choicesSection;
-        private Section _appsSection;
-        private Section _advancedSection;
-        private Section _restoreSection;
+        private Section _choicesSection, _appsSection, _advancedSection, _restoreSection;
+        private DispatcherTimer _themeWatch;
+
+        /// <summary>
+        /// Set by the snapshot tool so it can render a theme the machine is not in.
+        /// The product never sets it: the window follows Windows.
+        /// </summary>
+        internal static bool PinTheme = false;
 
         public MainWindow(State state)
         {
             _state = state;
 
             Title = S.AppName + " " + Build.Version;
-            Width = Theme.WindowWidth;
-            Height = Theme.WindowHeight;
+            Width = Theme.WindowMinWidth;
+            Height = Theme.WindowMinHeight + 160;
             MinWidth = Theme.WindowMinWidth;
             MinHeight = Theme.WindowMinHeight;
-            Background = Theme.Paper;
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
             UseLayoutRounding = true;
             SnapsToDevicePixels = true;
             TextOptions.SetTextFormattingMode(this, TextFormattingMode.Display);
+            TextOptions.SetTextRenderingMode(this, TextRenderingMode.ClearType);
+
+            Chrome.Apply(this);
+            if (!PinTheme) Theme.Mode = SystemTheme.IsDark() ? ThemeMode.Dark : ThemeMode.Light;
 
             BuildWindow();
+            if (!PinTheme) WatchSystemTheme();
         }
+
+        // -- shell ------------------------------------------------------------
 
         private void BuildWindow()
         {
             _plan = Engine.Preview(_state);
+            _segments.Clear();
 
-            _page = new StackPanel { Margin = new Thickness(Theme.Margin, 32, Theme.Margin, 36) };
-            _page.Children.Add(BuildMasthead());
-            _page.Children.Add(Theme.HairRule(2, Theme.Ink, 22, 30));
-            _page.Children.Add(BuildHero());
-            _page.Children.Add(BuildAction());
+            Background = Theme.Ground;
 
+            _titleBar = new TitleBar(this);
+            _titleBar.SetLanguages(S.Current);
+            _titleBar.LanguagePicked += (s, tag) =>
+            {
+                if (_busy) return;
+                S.Current = Program.ResolveLanguage(tag);
+                _state.LanguagePreference = tag;
+                TrySaveState();
+                Title = S.AppName + " " + Build.Version;
+                BuildWindow();
+            };
+
+            _page = new StackPanel();
+            _page.Children.Add(BuildPlanes());
+            _page.Children.Add(BuildDataBar());
+            _page.Children.Add(BuildSections());
+            _page.Children.Add(BuildFooter());
+
+            var scroll = new ScrollViewer
+            {
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                Content = _page,
+                Focusable = false,
+                Background = Brushes.Transparent
+            };
+
+            var root = new DockPanel { LastChildFill = true };
+            DockPanel.SetDock(_titleBar, Dock.Top);
+            root.Children.Add(_titleBar);
+            root.Children.Add(scroll);
+
+            Content = root;
+            RefreshStatus();
+        }
+
+        /// <summary>
+        /// The grid every row aligns to: a fixed margin, twelve equal columns, a
+        /// fixed margin. The extra outer columns let a plane bleed past the margin.
+        /// </summary>
+        private static Grid GridWithMargins()
+        {
+            var grid = new Grid();
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(Theme.GridMargin) });
+            for (int i = 0; i < 12; i++)
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(Theme.GridMargin) });
+            return grid;
+        }
+
+        // -- the two planes ---------------------------------------------------
+
+        private UIElement BuildPlanes()
+        {
+            Grid area = GridWithMargins();
+            area.Height = 452;
+
+            // Lower plane: columns 1 to 7, starting at the left margin.
+            Border plane1 = BuildStatusPlane();
+            Grid.SetColumn(plane1, 1);
+            Grid.SetColumnSpan(plane1, 7);
+            plane1.Margin = new Thickness(0, Theme.Space4, 0, Theme.Space6 - 4);
+
+            // Upper plane: from column 7, so it crosses the lower one, and on into
+            // the right margin so it bleeds off the edge.
+            _plane2 = BuildActionPlane();
+            Grid.SetColumn(_plane2, 7);
+            Grid.SetColumnSpan(_plane2, 7);
+            _plane2.Margin = new Thickness(0, 76, 0, 28);
+
+            _plane2Shift = new TranslateTransform(0, 0);
+            _plane2.RenderTransform = _plane2Shift;
+
+            area.Children.Add(plane1);
+            area.Children.Add(_plane2);
+            return area;
+        }
+
+        private Border BuildStatusPlane()
+        {
+            _headline = Text.Headline(string.Empty, Theme.Plane1Ink);
+
+            _sub = Text.Note(string.Empty, Theme.Plane1Muted);
+            _sub.Margin = new Thickness(0, Theme.Space3, 0, Theme.Space4 + 6);
+
+            _readout = new StackPanel();
+
+            var column = new StackPanel();
+            column.Children.Add(_headline);
+            column.Children.Add(_sub);
+            column.Children.Add(_readout);
+
+            // The upper plane crosses only this plane's last column, so the content
+            // runs to nine of the twelve inner columns: wide enough that a sentence
+            // does not wrap three times, and still clear of the overlap.
+            Grid inner = Layout.Columns();
+            Grid.SetColumn(column, 0);
+            Grid.SetColumnSpan(column, 9);
+            inner.Children.Add(column);
+
+            return new Border
+            {
+                Background = Theme.Plane1,
+                Padding = new Thickness(Theme.Space4 + 12, Theme.Space6, Theme.Space4, Theme.Space4),
+                Child = inner,
+                SnapsToDevicePixels = true
+            };
+        }
+
+        private Border BuildActionPlane()
+        {
+            _count = Text.Count("0", Theme.Plane2Ink);
+
+            _countUnit = Text.Note(string.Empty, Theme.Plane2Muted);
+            _countUnit.Margin = new Thickness(0, Theme.Space4 - 2, 0, 0);
+
+            _apply = new ActionButton(S.ApplySuperset);
+            _apply.Activated += delegate { Apply(); };
+
+            _resultPanel = new StackPanel { Margin = new Thickness(0, Theme.Space2, 0, 0) };
+
+            var column = new StackPanel();
+            column.Children.Add(_count);
+            column.Children.Add(_countUnit);
+            column.Children.Add(new Border { Height = Theme.Space6, Background = Brushes.Transparent });
+            column.Children.Add(_apply);
+            column.Children.Add(_resultPanel);
+
+            return new Border
+            {
+                Background = Theme.Plane2,
+                Padding = new Thickness(Theme.Space4 + 12, Theme.Space4 + 6, Theme.Space6 + Theme.PlaneOverlap, Theme.Space4),
+                Child = column,
+                SnapsToDevicePixels = true
+            };
+        }
+
+        // -- the 68 segments ---------------------------------------------------
+
+        private UIElement BuildDataBar()
+        {
+            Grid row = GridWithMargins();
+            row.Margin = new Thickness(0, 0, 0, Theme.Space6);
+
+            var bar = new Grid();
+            bar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(40, GridUnitType.Star) });
+            bar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(21, GridUnitType.Star) });
+            bar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(7, GridUnitType.Star) });
+
+            UIElement gains = BuildSegmentGroup(40, false);
+            UIElement taste = BuildSegmentGroup(21, false);
+            UIElement losses = BuildSegmentGroup(7, true);
+            Grid.SetColumn(gains, 0);
+            Grid.SetColumn(taste, 1);
+            Grid.SetColumn(losses, 2);
+            ((FrameworkElement)gains).Margin = new Thickness(0, 0, Theme.Gutter, 0);
+            ((FrameworkElement)taste).Margin = new Thickness(0, 0, Theme.Gutter, 0);
+            bar.Children.Add(gains);
+            bar.Children.Add(taste);
+            bar.Children.Add(losses);
+
+            _legend = new StackPanel { Margin = new Thickness(0, Theme.Space2 + 2, 0, 0) };
+            var legendRow = new Grid();
+            legendRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(40, GridUnitType.Star) });
+            legendRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(21, GridUnitType.Star) });
+            legendRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(7, GridUnitType.Star) });
+            _legend.Children.Add(legendRow);
+
+            var stack = new StackPanel();
+            stack.Children.Add(bar);
+            stack.Children.Add(_legend);
+
+            Grid.SetColumn(stack, 1);
+            Grid.SetColumnSpan(stack, 12);
+            row.Children.Add(stack);
+            return row;
+        }
+
+        private UIElement BuildSegmentGroup(int count, bool held)
+        {
+            var grid = new Grid { Height = Theme.Segment };
+            for (int i = 0; i < count; i++)
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            for (int i = 0; i < count; i++)
+            {
+                var cell = new Border
+                {
+                    Background = held ? MakeHatch() : Theme.SegOff,
+                    Margin = new Thickness(0, 0, i == count - 1 ? 0 : 2, 0),
+                    SnapsToDevicePixels = true
+                };
+                Grid.SetColumn(cell, i);
+                grid.Children.Add(cell);
+                if (!held) _segments.Add(cell);
+            }
+            return grid;
+        }
+
+        /// <summary>
+        /// The hatching over a loss. Diagonal, so it reads as "struck out, kept" and
+        /// never as a dimmer version of a lit segment.
+        /// </summary>
+        private static Brush MakeHatch()
+        {
+            // A DrawingBrush, not a VisualBrush: a brush wrapping a live Visual cannot
+            // be frozen, and an unfrozen brush cannot be rendered off the UI thread,
+            // which is how the snapshot tool reads the window.
+            var pen = new Pen(Theme.Held, 1);
+            pen.Freeze();
+
+            var drawing = new GeometryDrawing(null, pen, Geometry.Parse("M -1,3 L 3,-1 M 0,4 L 4,0 M 1,5 L 5,1"));
+            drawing.Freeze();
+
+            var brush = new DrawingBrush(drawing)
+            {
+                TileMode = TileMode.Tile,
+                Viewport = new Rect(0, 0, 4, 4),
+                ViewportUnits = BrushMappingMode.Absolute,
+                Viewbox = new Rect(0, 0, 4, 4),
+                ViewboxUnits = BrushMappingMode.Absolute
+            };
+            brush.Freeze();
+            return brush;
+        }
+
+        // -- sections and footer ----------------------------------------------
+
+        private UIElement BuildSections()
+        {
             _choicesSection = BuildChoicesSection();
             _appsSection = BuildAppsSection();
             _advancedSection = BuildAdvancedSection();
             _restoreSection = BuildRestoreSection();
 
-            var sections = new StackPanel { Margin = new Thickness(0, 30, 0, 0) };
-            sections.Children.Add(_choicesSection);
-            sections.Children.Add(_appsSection);
-            sections.Children.Add(_advancedSection);
-            sections.Children.Add(_restoreSection);
-            sections.Children.Add(Theme.HairRule(1, Theme.Rule, 0, 0));
-            _page.Children.Add(sections);
+            var stack = new StackPanel();
+            stack.Children.Add(_choicesSection);
+            stack.Children.Add(_appsSection);
+            stack.Children.Add(_advancedSection);
+            stack.Children.Add(_restoreSection);
+            stack.Children.Add(Layout.Rule(Theme.Plane1Hair));
 
-            _page.Children.Add(BuildFooter());
-
-            Content = new ScrollViewer
-            {
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-                Content = _page,
-                Focusable = false
-            };
-
-            RefreshStatus();
+            return new Border { Background = Theme.Plane1, Child = stack, SnapsToDevicePixels = true };
         }
 
-        private void Rebuild()
+        private UIElement BuildFooter()
         {
-            BuildWindow();
-        }
+            Grid row = GridWithMargins();
+            row.Margin = new Thickness(0, Theme.Space4, 0, Theme.Space6);
 
-        // -- masthead ---------------------------------------------------------
+            var line = new StackPanel { Orientation = Orientation.Horizontal };
 
-        private UIElement BuildMasthead()
-        {
-            var name = Text.Make(S.AppName, Theme.SizeHead, Theme.Ink, FontWeights.Bold);
-            name.FontFamily = Theme.Display;
-            name.TextWrapping = TextWrapping.NoWrap;
+            var log = new LinkButton(S.OpenLog, Theme.GroundInk, Theme.Plane1Hair) { Margin = new Thickness(0, 0, Theme.Space4, 0) };
+            log.Activated += delegate { OpenPath(Paths.LogFile); };
+            line.Children.Add(log);
 
-            // The second line carries the name in the other script. A bilingual
-            // masthead is honest here: the tool is named in Chinese and in English.
-            TextBlock alternate = Text.Micro(S.AppNameRoman, Theme.Mute);
-            alternate.Margin = new Thickness(0, 3, 0, 0);
+            var folder = new LinkButton(S.OpenFolder, Theme.GroundInk, Theme.Plane1Hair) { Margin = new Thickness(0, 0, Theme.Space4, 0) };
+            folder.Activated += delegate { OpenPath(Paths.DataRoot); };
+            line.Children.Add(folder);
 
-            TextBlock tagline = Text.Make(S.Tagline, Theme.SizeBody, Theme.Ink, FontWeights.Normal);
-            tagline.Margin = new Thickness(0, 10, 0, 0);
-            tagline.MaxWidth = 460;
-
-            var left = new StackPanel();
-            left.Children.Add(name);
-            left.Children.Add(alternate);
-            left.Children.Add(tagline);
-
-            var grid = new Grid();
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            Grid.SetColumn(left, 0);
-
-            UIElement languages = BuildLanguageSwitch();
-            Grid.SetColumn(languages, 1);
-
-            grid.Children.Add(left);
-            grid.Children.Add(languages);
-            return grid;
-        }
-
-        private UIElement BuildLanguageSwitch()
-        {
-            var row = new StackPanel
+            var update = new LinkButton(S.CheckUpdate, Theme.GroundInk, Theme.Plane1Hair);
+            TextBlock outcome = Text.Micro(string.Empty, Theme.GroundMuted);
+            outcome.VerticalAlignment = VerticalAlignment.Center;
+            outcome.Margin = new Thickness(Theme.Space3, 0, 0, 0);
+            update.Activated += async delegate
             {
-                Orientation = Orientation.Horizontal,
-                VerticalAlignment = VerticalAlignment.Top,
-                HorizontalAlignment = HorizontalAlignment.Right
+                update.Active = false;
+                outcome.Text = S.Working;
+                string latest = await Task.Run(new Func<string>(Updates.LatestVersion));
+                outcome.Text = latest == null ? S.UpdateFailed
+                    : Updates.IsNewer(latest) ? string.Format(CultureInfo.CurrentCulture, S.UpdateAvailable, latest)
+                    : S.UpdateLatest;
+                update.Active = true;
             };
+            line.Children.Add(update);
+            line.Children.Add(outcome);
 
-            var options = new[]
-            {
-                new { Tag = "zh-Hant", Lang = Lang.ZhHant, Caption = "繁中" },
-                new { Tag = "zh-Hans", Lang = Lang.ZhHans, Caption = "简中" },
-                new { Tag = "en", Lang = Lang.En, Caption = "EN" }
-            };
+            TextBlock privacy = Text.Micro(S.NoNetworkByDefault, Theme.GroundMuted);
+            privacy.Margin = new Thickness(0, Theme.Space2, 0, 0);
+            privacy.MaxWidth = 620;
 
-            foreach (var option in options)
-            {
-                bool current = S.Current == option.Lang;
+            var stack = new StackPanel();
+            stack.Children.Add(line);
+            stack.Children.Add(privacy);
 
-                // The selected language is marked, not disabled: a greyed-out item reads
-                // as unavailable, which is the opposite of what it means here.
-                if (current)
-                {
-                    var marked = new StackPanel { Margin = new Thickness(14, 0, 0, 0) };
-                    TextBlock label = Text.Make(option.Caption, Theme.SizeBody, Theme.Ink, FontWeights.Bold);
-                    label.TextWrapping = TextWrapping.NoWrap;
-                    marked.Children.Add(label);
-                    marked.Children.Add(Theme.HairRule(2, Theme.Red, 2, 0));
-                    row.Children.Add(marked);
-                    continue;
-                }
-
-                var button = new LinkButton(option.Caption, Theme.SizeBody)
-                {
-                    Margin = new Thickness(14, 0, 0, 0)
-                };
-
-                string tag = option.Tag;
-                Lang lang = option.Lang;
-                button.Activated += (s, e) =>
-                {
-                    if (_busy) return;
-                    S.Current = lang;
-                    _state.LanguagePreference = tag;
-                    TrySaveState();
-                    Title = S.AppName + " " + Build.Version;
-                    Rebuild();
-                };
-                row.Children.Add(button);
-            }
+            Grid.SetColumn(stack, 1);
+            Grid.SetColumnSpan(stack, 12);
+            row.Children.Add(stack);
             return row;
         }
 
-        // -- hero -------------------------------------------------------------
-
-        private UIElement BuildHero()
-        {
-            _numeral = Text.Numeral("0", Theme.Ink);
-
-            TextBlock caption = Text.Micro(S.BenefitsActive, Theme.Mute);
-            caption.Margin = new Thickness(0, 4, 0, 0);
-
-            _statusWord = Text.Make(string.Empty, Theme.SizeLead, Theme.Mute, FontWeights.Bold);
-            _statusWord.Margin = new Thickness(0, 12, 12, 0);
-
-            var left = new StackPanel { Width = Theme.HeroColumn };
-            left.Children.Add(_numeral);
-            left.Children.Add(caption);
-            left.Children.Add(_statusWord);
-
-            _readout = new StackPanel();
-
-            var grid = new Grid();
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(Theme.HeroColumn) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            Grid.SetColumn(left, 0);
-            Grid.SetColumn(_readout, 1);
-            grid.Children.Add(left);
-            grid.Children.Add(_readout);
-            grid.Margin = new Thickness(0, 0, 0, 26);
-            return grid;
-        }
-
-        private UIElement BuildAction()
-        {
-            _applyButton = new PrimaryButton(S.ApplySuperset, 268);
-            _applyButton.Activated += (s, e) => Apply();
-
-            TextBlock hint = Text.Make(string.Empty, Theme.SizeMicro, Theme.Mute, FontWeights.Normal);
-            hint.Name = "hint";
-            hint.MaxWidth = 560;
-            hint.Margin = new Thickness(0, 0, 0, 14);
-
-            _progressLine = Text.Make(string.Empty, Theme.SizeBody, Theme.Red, FontWeights.Bold);
-            _progressLine.Margin = new Thickness(0, 14, 0, 0);
-            _progressLine.Visibility = Visibility.Collapsed;
-
-            _resultPanel = new StackPanel { Margin = new Thickness(0, 18, 0, 0) };
-
-            var stack = new StackPanel();
-            stack.Children.Add(hint);
-            stack.Children.Add(_applyButton);
-            stack.Children.Add(_progressLine);
-            stack.Children.Add(_resultPanel);
-            _hintBlock = hint;
-            return stack;
-        }
-
-        private TextBlock _hintBlock;
-
-        // -- status -----------------------------------------------------------
+        // -- status ------------------------------------------------------------
 
         private void RefreshStatus()
         {
@@ -254,74 +382,162 @@ namespace EULord.Ui
             PersistenceStatus task = Persistence.Status();
             int? region = Region.Read();
 
-            int gains = 0, possible = Catalog.Count;
-            if (_plan != null)
-            {
-                possible = _plan.BenefitsTotal + _plan.ChoicesTotal;
-                gains = origin == PolicyFileOrigin.Ours ? CountGainsInEffect() : 0;
-            }
-
-            _numeral.Text = gains.ToString(CultureInfo.InvariantCulture) + " / " +
-                            possible.ToString(CultureInfo.InvariantCulture);
-            _numeral.Foreground = gains == 0 ? Theme.Ink : Theme.Red;
+            int possible = _plan != null ? _plan.BenefitsTotal + _plan.ChoicesTotal : Catalog.Count;
+            int gains = origin == PolicyFileOrigin.Ours ? CountGainsInEffect() : 0;
 
             bool everApplied = _state.EverApplied;
             bool complete = everApplied && origin == PolicyFileOrigin.Ours &&
                             region.HasValue && region.Value == _state.RegionGeoId &&
                             task == PersistenceStatus.Ready;
 
-            L word = !everApplied ? S.StatusNotApplied
-                   : origin == PolicyFileOrigin.Unreadable ? S.StatusUnknown
-                   : complete ? S.StatusApplied : S.StatusPartial;
+            _count.Text = gains.ToString(CultureInfo.InvariantCulture);
+            _countUnit.Text = "/ " + possible.ToString(CultureInfo.InvariantCulture) + "　" + S.BenefitsActive;
 
-            _statusWord.Text = word;
-            _statusWord.Foreground = complete ? Theme.Ink : Theme.Mute;
+            _headline.Text = !everApplied ? S.StatusNotApplied
+                           : origin == PolicyFileOrigin.Unreadable ? S.StatusUnknown
+                           : complete ? S.StatusApplied : S.StatusPartial;
 
-            _readout.Children.Clear();
+            _sub.Text = everApplied
+                ? string.Format(CultureInfo.CurrentCulture, S.AppliedSummary, gains, _plan != null ? _plan.LossesTotal : 7)
+                : (string)S.NotAppliedSummary;
 
-            string regionText = region.HasValue
-                ? region.Value.ToString(CultureInfo.InvariantCulture) + "  " + (Native.Iso2Of(region.Value) ?? "?") +
-                  "  " + (Native.FriendlyNameOf(region.Value) ?? string.Empty)
-                : "—";
-            _readout.Children.Add(Layout.ReadoutRow(S.RowRegion, regionText,
-                region.HasValue && region.Value == _state.RegionGeoId ? Theme.Ink : Theme.Mute));
+            BuildReadout(origin, task, region);
+            PaintSegments(origin == PolicyFileOrigin.Ours, false);
+            PaintLegend();
 
-            L policyLabel = origin == PolicyFileOrigin.Ours ? S.PolicyOurs
-                          : origin == PolicyFileOrigin.WindowsOriginal ? S.PolicyPristine : S.PolicyMissing;
-            _readout.Children.Add(Layout.ReadoutRow(S.RowPolicyFile, policyLabel,
-                origin == PolicyFileOrigin.Ours ? Theme.Ink : Theme.Mute));
-
-            L taskLabel = task == PersistenceStatus.Ready ? S.TaskReady
-                        : task == PersistenceStatus.Disabled ? S.TaskDisabled
-                        : task == PersistenceStatus.Stale ? S.TaskStale : S.TaskAbsent;
-            _readout.Children.Add(Layout.ReadoutRow(S.RowPersistence, taskLabel,
-                task == PersistenceStatus.Ready ? Theme.Ink : Theme.Mute));
-
-            int chosen = _state.SelectedChoices().Count;
-            _readout.Children.Add(Layout.ReadoutRow(S.RowChoices,
-                chosen == 0 ? (string)S.NoneSelected : string.Format(CultureInfo.CurrentCulture, S.NSelected, chosen),
-                chosen == 0 ? Theme.Mute : Theme.Ink));
-
-            int unclassified = _plan != null ? _plan.Unclassified.Count : _state.Unclassified.Count;
-            _readout.Children.Add(Layout.ReadoutRow(S.RowUnclassified,
-                unclassified == 0 ? (string)S.AllClassified
-                                  : string.Format(CultureInfo.CurrentCulture, S.NUnclassified, unclassified),
-                unclassified == 0 ? Theme.Mute : Theme.Red));
-
-            _hintBlock.Text = string.Format(CultureInfo.CurrentCulture, S.ApplyHint,
-                _plan != null ? _plan.BenefitsTotal : Catalog.CountOfClass(PolicyClass.Benefit),
-                _plan != null ? _plan.LossesTotal : Catalog.CountOfClass(PolicyClass.Loss),
-                _plan != null ? _plan.ChoicesTotal : Catalog.CountOfClass(PolicyClass.Choice));
-
-            _applyButton.Caption = everApplied ? S.ReapplySuperset : S.ApplySuperset;
+            _apply.Caption = everApplied ? S.ReapplySuperset : S.ApplySuperset;
+            _apply.Quiet = complete && !ChoicesChanged();
+            _plane2Shift.X = origin == PolicyFileOrigin.Ours ? -Theme.PlaneOverlap : 0;
 
             RefreshSectionSummaries();
         }
 
+        private void BuildReadout(PolicyFileOrigin origin, PersistenceStatus task, int? region)
+        {
+            _readout.Children.Clear();
+
+            string regionText = region.HasValue
+                ? region.Value.ToString(CultureInfo.InvariantCulture) + "　" + (Native.Iso2Of(region.Value) ?? "?")
+                : "—";
+            AddRow(S.RowRegion, regionText, region.HasValue && region.Value == _state.RegionGeoId);
+
+            AddRow(S.RowPolicyFile,
+                origin == PolicyFileOrigin.Ours ? (string)S.PolicyOurs
+                : origin == PolicyFileOrigin.WindowsOriginal ? (string)S.PolicyPristine : (string)S.PolicyMissing,
+                origin == PolicyFileOrigin.Ours);
+
+            AddRow(S.RowPersistence,
+                task == PersistenceStatus.Ready ? (string)S.TaskReady
+                : task == PersistenceStatus.Disabled ? (string)S.TaskDisabled
+                : task == PersistenceStatus.Stale ? (string)S.TaskStale : (string)S.TaskAbsent,
+                task == PersistenceStatus.Ready);
+
+            int chosen = _state.SelectedChoices().Count;
+            AddRow(S.RowChoices,
+                chosen == 0 ? (string)S.NoneSelected
+                            : string.Format(CultureInfo.CurrentCulture, S.NSelected, chosen), false);
+
+            int unclassified = _plan != null ? _plan.Unclassified.Count : _state.Unclassified.Count;
+            AddRow(S.RowUnclassified,
+                unclassified == 0 ? (string)S.AllClassified
+                                  : string.Format(CultureInfo.CurrentCulture, S.NUnclassified, unclassified), false);
+        }
+
+        private void AddRow(string label, string value, bool marked)
+        {
+            var grid = new Grid { Height = Theme.Row };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(118) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(12) });
+
+            TextBlock labelBlock = Text.Note(label, Theme.Plane1Muted);
+            labelBlock.VerticalAlignment = VerticalAlignment.Center;
+
+            TextBlock valueBlock = Text.Body(value, Theme.Plane1Ink);
+            valueBlock.TextWrapping = TextWrapping.NoWrap;
+            valueBlock.VerticalAlignment = VerticalAlignment.Center;
+
+            var mark = new Border
+            {
+                Width = 10, Height = 10,
+                Background = marked ? Theme.Red : Brushes.Transparent,
+                VerticalAlignment = VerticalAlignment.Center,
+                SnapsToDevicePixels = true
+            };
+
+            Grid.SetColumn(labelBlock, 0);
+            Grid.SetColumn(valueBlock, 1);
+            Grid.SetColumn(mark, 2);
+            grid.Children.Add(labelBlock);
+            grid.Children.Add(valueBlock);
+            grid.Children.Add(mark);
+
+            if (_readout.Children.Count > 0) _readout.Children.Add(Layout.Rule(Theme.Plane1Hair));
+            else _readout.Children.Add(new Border { Height = 2, Background = Theme.Plane1Ink, SnapsToDevicePixels = true });
+
+            _readout.Children.Add(grid);
+        }
+
+        private void PaintSegments(bool lit, bool animate)
+        {
+            int taste = _state.EverApplied ? _appliedChoices : _state.SelectedChoices().Count;
+
+            for (int i = 0; i < _segments.Count; i++)
+            {
+                bool on = lit && (i < 40 || i - 40 < taste);
+                Brush target = !on ? Theme.SegOff : (i < 40 ? Theme.SegOn : Theme.Red);
+
+                if (!animate || Theme.ReduceMotion)
+                {
+                    _segments[i].Background = target;
+                    continue;
+                }
+
+                var solid = target as SolidColorBrush;
+                if (solid == null) { _segments[i].Background = target; continue; }
+
+                var fade = new ColorAnimation(solid.Color, Theme.SegmentFade)
+                {
+                    BeginTime = TimeSpan.FromMilliseconds(i * 16),
+                    EasingFunction = Theme.Mech()
+                };
+                var animated = new SolidColorBrush(((SolidColorBrush)_segments[i].Background).Color);
+                _segments[i].Background = animated;
+                animated.BeginAnimation(SolidColorBrush.ColorProperty, fade);
+            }
+        }
+
+        private void PaintLegend()
+        {
+            var row = (Grid)_legend.Children[0];
+            row.Children.Clear();
+
+            int taste = _state.EverApplied ? _appliedChoices : _state.SelectedChoices().Count;
+            string[] counts = { "40", "21", "7" };
+            string[] words =
+            {
+                S.LegendGains,
+                string.Format(CultureInfo.CurrentCulture, S.LegendTaste, taste),
+                S.LegendLosses
+            };
+
+            for (int i = 0; i < 3; i++)
+            {
+                var line = new StackPanel { Orientation = Orientation.Horizontal };
+                TextBlock number = Text.MicroStrong(counts[i], Theme.GroundInk);
+                number.Margin = new Thickness(0, 0, Theme.Space2, 0);
+                TextBlock word = Text.Micro(words[i], Theme.GroundMuted);
+                word.TextWrapping = TextWrapping.NoWrap;
+                line.Children.Add(number);
+                line.Children.Add(word);
+                Grid.SetColumn(line, i);
+                row.Children.Add(line);
+            }
+        }
+
         /// <summary>
-        /// How many gains are actually in the live file right now, as opposed to how many
-        /// the plan intends. Counted by reading the file back, so a half-applied machine
-        /// reports honestly.
+        /// How many gains are actually in the live file right now, as opposed to how
+        /// many the plan intends, so a half-applied machine reports honestly.
         /// </summary>
         private int CountGainsInEffect()
         {
@@ -343,9 +559,7 @@ namespace EULord.Ui
             int count = 0;
             foreach (PolicyDecision d in _plan.Decisions)
             {
-                if (d.Entry == null || !d.Differs) continue;
-                if (d.Entry.Class == PolicyClass.Loss) continue;
-
+                if (d.Entry == null || !d.Differs || d.Entry.Class == PolicyClass.Loss) continue;
                 string actual;
                 if (!onDisk.TryGetValue(d.Guid ?? string.Empty, out actual)) continue;
                 if (string.Equals(actual, d.EeaState, StringComparison.OrdinalIgnoreCase)) count++;
@@ -353,33 +567,73 @@ namespace EULord.Ui
             return count;
         }
 
-        // -- apply ------------------------------------------------------------
+        private bool ChoicesChanged()
+        {
+            return _state.EverApplied && _state.SelectedChoices().Count != _appliedChoices;
+        }
+
+        // -- apply --------------------------------------------------------------
 
         private async void Apply()
         {
             if (_busy) return;
+
+            int wanted = _state.SelectedChoices().Count;
             SetBusy(true);
             _resultPanel.Children.Clear();
 
-            var progress = new Progress(message => Dispatcher.BeginInvoke(
-                new Action(() => { _progressLine.Text = message + " …"; })));
+            int step = 0;
+            var progress = new Progress(delegate
+            {
+                int done = ++step;
+                Dispatcher.BeginInvoke(new Action(delegate { _apply.SetProgress(done / 7.0, true); }));
+            });
 
-            EngineResult result = await Task.Run(() => Engine.Apply(_state, progress));
+            EngineResult result = await Task.Run(new Func<EngineResult>(delegate { return Engine.Apply(_state, progress); }));
 
             _plan = Engine.Preview(_state);
-            _lastReport = result.Report;
+            _appliedChoices = result.Ok || result.Outcome == EngineOutcome.Partial ? wanted : _appliedChoices;
 
             SetBusy(false);
+            _apply.SetProgress(0, false);
+
+            if (!Theme.ReduceMotion && result.Outcome != EngineOutcome.NeedsElevation)
+            {
+                var slide = new DoubleAnimation(
+                    Backups.ClassifyLive() == PolicyFileOrigin.Ours ? -Theme.PlaneOverlap : 0,
+                    Theme.PlaneTravel) { EasingFunction = Theme.Mech() };
+                _plane2Shift.BeginAnimation(TranslateTransform.XProperty, slide);
+            }
+
             ShowResult(result);
             RefreshStatus();
+            PaintSegments(Backups.ClassifyLive() == PolicyFileOrigin.Ours, true);
+            AnimateCount();
+        }
+
+        private void AnimateCount()
+        {
+            int target;
+            if (!int.TryParse(_count.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out target)) return;
+            if (Theme.ReduceMotion || target == 0) return;
+
+            var anim = new Int32Animation(0, target, Theme.Count) { EasingFunction = Theme.Mech() };
+            var clock = anim.CreateClock();
+            clock.CurrentTimeInvalidated += delegate
+            {
+                double? p = clock.CurrentProgress;
+                if (!p.HasValue) return;
+                _count.Text = ((int)Math.Round(target * p.Value)).ToString(CultureInfo.InvariantCulture);
+            };
+            clock.Completed += delegate { _count.Text = target.ToString(CultureInfo.InvariantCulture); };
+            clock.Controller.Begin();
         }
 
         private void SetBusy(bool busy)
         {
             _busy = busy;
-            _applyButton.Active = !busy;
-            _applyButton.Caption = busy ? S.Working : (_state.EverApplied ? S.ReapplySuperset : S.ApplySuperset);
-            _progressLine.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
+            _apply.Active = !busy;
+            _apply.Caption = busy ? S.Working : (_state.EverApplied ? S.ReapplySuperset : S.ApplySuperset);
             Cursor = busy ? Cursors.Wait : Cursors.Arrow;
         }
 
@@ -391,114 +645,44 @@ namespace EULord.Ui
                        : result.Outcome == EngineOutcome.NeedsElevation ? S.NeedAdmin
                        : result.Outcome == EngineOutcome.Partial ? S.StatusPartial : S.Failed;
 
-            TextBlock head = Text.Make(headline, Theme.SizeLead,
-                result.Outcome == EngineOutcome.Success ? Theme.Ink : Theme.Red, FontWeights.Bold);
+            TextBlock head = Text.MicroStrong(headline, Theme.Plane2Ink);
+            head.Margin = new Thickness(0, Theme.Space3, 0, 0);
             _resultPanel.Children.Add(head);
-
-            if (result.Outcome == EngineOutcome.Success || result.Outcome == EngineOutcome.Partial)
-            {
-                TextBlock note = Text.Make(S.NeedsRestart, Theme.SizeMicro, Theme.Mute, FontWeights.Normal);
-                note.Margin = new Thickness(0, 4, 0, 0);
-                _resultPanel.Children.Add(note);
-            }
 
             foreach (string problem in result.Problems)
             {
-                TextBlock line = Text.Make("· " + problem, Theme.SizeMicro, Theme.Red, FontWeights.Normal);
-                line.Margin = new Thickness(0, 4, 0, 0);
-                line.MaxWidth = 640;
+                TextBlock line = Text.Micro("· " + problem, Theme.Plane2Muted);
+                line.Margin = new Thickness(0, Theme.Space1, 0, 0);
                 _resultPanel.Children.Add(line);
             }
 
-            if (result.Report != null)
-                _resultPanel.Children.Add(BuildVerifyTable(result.Report));
-        }
-
-        private UIElement BuildVerifyTable(VerifyReport report)
-        {
-            var stack = new StackPanel { Margin = new Thickness(0, 20, 0, 0) };
-            stack.Children.Add(Text.Micro(S.VerifyTitle, Theme.Mute));
-            stack.Children.Add(Theme.HairRule(1, Theme.Rule, 8, 8));
-
-            foreach (Check check in report.Checks)
+            if (result.Report == null) return;
+            foreach (Check check in result.Report.Checks)
             {
-                var grid = new Grid { Margin = new Thickness(0, 0, 0, 9) };
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(110) });
-
-                var titleStack = new StackPanel();
-                titleStack.Children.Add(Text.Body(check.Title));
-
-                TextBlock evidence = Text.Make(check.Evidence, Theme.SizeMicro, Theme.Faint, FontWeights.Normal);
-                evidence.Margin = new Thickness(0, 2, 12, 0);
-                titleStack.Children.Add(evidence);
-
-                if (check.Result != CheckResult.Pass && check.Advice != null)
-                {
-                    TextBlock advice = Text.Make(check.Advice, Theme.SizeMicro, Theme.Mute, FontWeights.Normal);
-                    advice.Margin = new Thickness(0, 3, 12, 0);
-                    titleStack.Children.Add(advice);
-                }
-
-                TextBlock verdict = Text.Make(Layout.LabelFor(check.Result), Theme.SizeBody,
-                                              Layout.BrushFor(check.Result), FontWeights.Bold);
-                verdict.TextAlignment = TextAlignment.Right;
-                verdict.TextWrapping = TextWrapping.NoWrap;
-                verdict.VerticalAlignment = VerticalAlignment.Top;
-
-                Grid.SetColumn(titleStack, 0);
-                Grid.SetColumn(verdict, 1);
-                grid.Children.Add(titleStack);
-                grid.Children.Add(verdict);
-                stack.Children.Add(grid);
+                if (check.Result == CheckResult.Pass) continue;
+                TextBlock line = Text.Micro("· " + check.Title + "　" + Layout.LabelFor(check.Result), Theme.Plane2Muted);
+                line.Margin = new Thickness(0, Theme.Space1, 0, 0);
+                _resultPanel.Children.Add(line);
             }
-            return stack;
         }
 
-        // -- footer -----------------------------------------------------------
+        // -- theme ---------------------------------------------------------------
 
-        private UIElement BuildFooter()
+        private void WatchSystemTheme()
         {
-            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 26, 0, 0) };
-
-            TextBlock version = Text.Micro(Build.Version, Theme.Faint);
-            version.VerticalAlignment = VerticalAlignment.Center;
-            version.Margin = new Thickness(0, 0, 20, 0);
-            row.Children.Add(version);
-
-            var log = new LinkButton(S.OpenLog, Theme.SizeMicro) { Margin = new Thickness(0, 0, 20, 0) };
-            log.Activated += (s, e) => OpenPath(Paths.LogFile);
-            row.Children.Add(log);
-
-            var folder = new LinkButton(S.OpenFolder, Theme.SizeMicro) { Margin = new Thickness(0, 0, 20, 0) };
-            folder.Activated += (s, e) => OpenPath(Paths.DataRoot);
-            row.Children.Add(folder);
-
-            var update = new LinkButton(S.CheckUpdate, Theme.SizeMicro);
-            var updateResult = Text.Make(string.Empty, Theme.SizeMicro, Theme.Mute, FontWeights.Normal);
-            updateResult.VerticalAlignment = VerticalAlignment.Center;
-            updateResult.Margin = new Thickness(12, 0, 0, 0);
-            update.Activated += async (s, e) =>
+            _themeWatch = new DispatcherTimer(DispatcherPriority.Background)
             {
-                update.Active = false;
-                updateResult.Text = S.Working;
-                string latest = await Task.Run(() => Updates.LatestVersion());
-                updateResult.Text = latest == null ? S.UpdateFailed
-                    : Updates.IsNewer(latest) ? string.Format(CultureInfo.CurrentCulture, S.UpdateAvailable, latest)
-                    : S.UpdateLatest;
-                update.Active = true;
+                Interval = TimeSpan.FromSeconds(1)
             };
-            row.Children.Add(update);
-            row.Children.Add(updateResult);
-
-            var stack = new StackPanel();
-            stack.Children.Add(row);
-
-            TextBlock privacy = Text.Make(S.NoNetworkByDefault, Theme.SizeMicro, Theme.Faint, FontWeights.Normal);
-            privacy.Margin = new Thickness(0, 8, 0, 0);
-            privacy.MaxWidth = 620;
-            stack.Children.Add(privacy);
-            return stack;
+            _themeWatch.Tick += delegate
+            {
+                ThemeMode wanted = SystemTheme.IsDark() ? ThemeMode.Dark : ThemeMode.Light;
+                if (wanted == Theme.Mode) return;
+                Theme.Mode = wanted;
+                BuildWindow();
+            };
+            _themeWatch.Start();
+            Closed += delegate { if (_themeWatch != null) _themeWatch.Stop(); };
         }
 
         private static void OpenPath(string path)

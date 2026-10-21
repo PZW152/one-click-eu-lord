@@ -1,9 +1,21 @@
-﻿// The widget set: text, a button, a checkbox, a three-way switch, and a section
-// that opens. Each one is composed from Border/TextBlock so the Swiss look holds
-// exactly, including on hover and focus, where WPF's own templates take over.
+﻿// The widget set.
 //
-// Keyboard reachability is part of the floor, not an extra: everything clickable is
-// focusable, answers to Space and Enter, and draws a visible focus ring.
+// Everything is composed from Border, Grid and TextBlock rather than restyled WPF
+// controls, because a stock Button or CheckBox reasserts its own chrome on hover
+// whatever the properties say, and this design has square corners, flat colour
+// planes and no blurred shadows anywhere.
+//
+// Two rules hold throughout, both of them fixes for real bugs:
+//
+//   Nothing changes size between states. Every focusable thing carries a
+//   permanent 2px border that is transparent until it has keyboard focus, so the
+//   ring costs no layout. A thickness that changes on focus or on tick nudges
+//   every neighbour sideways.
+//
+//   No outlined box is drawn with a stroke. Strokes and BorderThickness get
+//   rounded away at fractional scaling -- that is exactly how the tick box lost
+//   its bottom edge -- so an outline is two filled rectangles, one inside the
+//   other. Filled rectangles cannot lose an edge.
 
 using System;
 using System.Collections.Generic;
@@ -11,64 +23,142 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Shapes;
 using EULord.Core;
 
 namespace EULord.Ui
 {
     internal static class Text
     {
-        public static TextBlock Make(string content, double size, Brush brush, FontWeight weight)
+        private static FontFamily _sans, _display;
+
+        private static FontFamily Sans
+        {
+            get { if (_sans == null) _sans = new FontFamily(Theme.SansFamily); return _sans; }
+        }
+
+        private static FontFamily Display
+        {
+            get { if (_display == null) _display = new FontFamily(Theme.DisplayFamily); return _display; }
+        }
+
+        public static TextBlock Make(string content, double size, double line, int weight, Brush brush)
         {
             return new TextBlock
             {
                 Text = content ?? string.Empty,
-                FontFamily = Theme.Sans,
+                FontFamily = Sans,
                 FontSize = size,
+                LineHeight = line,
+                LineStackingStrategy = LineStackingStrategy.BlockLineHeight,
+                FontWeight = FontWeight.FromOpenTypeWeight(weight),
                 Foreground = brush,
-                FontWeight = weight,
                 TextWrapping = TextWrapping.Wrap,
-                TextAlignment = TextAlignment.Left,       // flush left, ragged right
-                // Without this, a TextBlock with a MaxWidth inside a StackPanel
-                // stretches and then centres itself, which quietly breaks the grid.
+                TextAlignment = TextAlignment.Left,
+                // Flush left, ragged right. Without this a MaxWidth inside a
+                // StackPanel stretches the block and then centres it, which quietly
+                // breaks the grid.
                 HorizontalAlignment = HorizontalAlignment.Left
             };
         }
 
-        public static TextBlock Body(string content) { return Make(content, Theme.SizeBody, Theme.Ink, FontWeights.Normal); }
-        public static TextBlock Lead(string content) { return Make(content, Theme.SizeLead, Theme.Ink, FontWeights.Normal); }
-        public static TextBlock Muted(string content) { return Make(content, Theme.SizeBody, Theme.Mute, FontWeights.Normal); }
-        public static TextBlock Head(string content) { return Make(content, Theme.SizeHead, Theme.Ink, FontWeights.Bold); }
+        public static TextBlock Body(string s, Brush b) { return Make(s, Theme.BodySize, Theme.BodyLine, Theme.BodyWeight, b); }
+        public static TextBlock Note(string s, Brush b) { return Make(s, Theme.NoteSize, Theme.NoteLine, Theme.NoteWeight, b); }
+        public static TextBlock Micro(string s, Brush b) { return Make(s, Theme.MicroSize, Theme.MicroLine, Theme.MicroWeight, b); }
+        public static TextBlock MicroStrong(string s, Brush b) { return Make(s, Theme.MicroStrongSize, Theme.MicroStrongLine, Theme.MicroStrongWeight, b); }
+        public static TextBlock Section(string s, Brush b) { return Make(s, Theme.SectionSize, Theme.SectionLine, Theme.SectionWeight, b); }
+        public static TextBlock Action(string s, Brush b) { return Make(s, Theme.ActionSize, Theme.ActionLine, Theme.ActionWeight, b); }
 
-        /// <summary>
-        /// The small tracked label used for table column heads and the masthead's second
-        /// line. Letter-spacing is a Swiss device for small type, and these are structural
-        /// column heads rather than decorative eyebrows over every block.
-        /// </summary>
-        public static TextBlock Micro(string content, Brush brush)
+        /// <summary>The state of the machine in words, top left of the lower plane.</summary>
+        public static TextBlock Headline(string s, Brush b)
         {
-            TextBlock block = Make((content ?? string.Empty).ToUpperInvariant(), Theme.SizeMicro, brush, FontWeights.Normal);
-            block.TextWrapping = TextWrapping.NoWrap;
-            return block;
+            TextBlock t = Make(s, Theme.HeadlineSize, Theme.HeadlineLine, Theme.HeadlineWeight, b);
+            t.FontFamily = Display;
+            t.TextWrapping = TextWrapping.NoWrap;
+            return t;
         }
 
-        /// <summary>The one display element: the count of gains, set large and tight.</summary>
-        public static TextBlock Numeral(string content, Brush brush)
+        /// <summary>The count of gains. One per window, in Arial's Black face.</summary>
+        public static TextBlock Count(string s, Brush b)
         {
-            return new TextBlock
+            // No LineHeight: the token's tight line box is an optical value for CSS,
+            // and forcing it here clips the top of the digits instead. The same
+            // tightening is done with margins, which cannot crop a glyph.
+            var t = new TextBlock
             {
-                Text = content ?? string.Empty,
-                FontFamily = Theme.Display,
-                FontSize = Theme.SizeDisplay,
-                Foreground = brush,
+                Text = s ?? string.Empty,
+                FontFamily = Display,
+                FontSize = Theme.CountSize,
+                FontWeight = FontWeight.FromOpenTypeWeight(Theme.CountWeight),
+                Foreground = b,
                 TextWrapping = TextWrapping.NoWrap,
-                LineHeight = Theme.SizeDisplay * 1.02,
-                LineStackingStrategy = LineStackingStrategy.BlockLineHeight
+                HorizontalAlignment = HorizontalAlignment.Left
             };
+
+            // Only the vertical leading is taken up here. Pulling the glyph left by
+            // the tracking value as well put its left edge under the plane's padding
+            // and shaved the first digit.
+            t.Margin = new Thickness(0, -Theme.CountSize * 0.17, 0, -Theme.CountSize * 0.1);
+            return t;
+        }
+    }
+
+    /// <summary>
+    /// An outlined or filled square that cannot lose an edge: an outer filled
+    /// rectangle with an inner one inset by the stroke width.
+    /// </summary>
+    internal sealed class Plate : Grid
+    {
+        private readonly Path _ring;
+        private readonly Path _fill;
+
+        public Plate(double size, double stroke)
+        {
+            Width = size;
+            Height = size;
+
+            // One filled ring, not a Border inside a Border. Nesting two filled
+            // rectangles looked safe, but the inner one's margin is laid out, and at
+            // some sub-pixel positions layout rounding let it cover the outer's top
+            // and bottom edges completely -- leaving two vertical slivers where a box
+            // should be. That was the reported bug, and it survived the first fix.
+            //
+            // A ring is a single filled geometry in this element's own coordinate
+            // space: nothing is laid out inside it, so no edge can be rounded away.
+            var outer = new RectangleGeometry(new Rect(0, 0, size, size));
+            var hole = new RectangleGeometry(new Rect(stroke, stroke, size - 2 * stroke, size - 2 * stroke));
+
+            var ring = new CombinedGeometry(GeometryCombineMode.Exclude, outer, hole);
+            ring.Freeze();
+            hole.Freeze();
+
+            _fill = new Path { Data = hole };
+            _ring = new Path { Data = ring };
+
+            Children.Add(_fill);
+            Children.Add(_ring);
+        }
+
+        /// <summary>Outline only: the edge colour shows around the fill.</summary>
+        public void Paint(Brush edge, Brush fill)
+        {
+            _ring.Fill = edge;
+            _fill.Fill = fill;
+        }
+
+        /// <summary>The tick, drawn over the ring.</summary>
+        public UIElement Overlay
+        {
+            set
+            {
+                while (Children.Count > 2) Children.RemoveAt(2);
+                if (value != null) Children.Add(value);
+            }
         }
     }
 
     /// <summary>A clickable surface with hover, press, focus and disabled states.</summary>
-    internal class Pressable : Border
+    internal abstract class Pressable : Border
     {
         private bool _hovered, _pressed, _enabled = true;
 
@@ -80,18 +170,22 @@ namespace EULord.Ui
             SnapsToDevicePixels = true;
             Cursor = Cursors.Hand;
 
-            MouseEnter += (s, e) => { _hovered = true; Repaint(); };
-            MouseLeave += (s, e) => { _hovered = false; _pressed = false; Repaint(); };
-            PreviewMouseLeftButtonDown += (s, e) => { _pressed = true; Focus(); Repaint(); };
-            PreviewMouseLeftButtonUp += (s, e) =>
+            // Always present, so showing it costs no layout.
+            BorderThickness = new Thickness(2);
+            BorderBrush = Brushes.Transparent;
+
+            MouseEnter += delegate { _hovered = true; Repaint(); };
+            MouseLeave += delegate { _hovered = false; _pressed = false; Repaint(); };
+            PreviewMouseLeftButtonDown += delegate { _pressed = true; Focus(); Repaint(); };
+            PreviewMouseLeftButtonUp += delegate
             {
-                bool wasPressed = _pressed;
+                bool was = _pressed;
                 _pressed = false;
                 Repaint();
-                if (wasPressed && _enabled) Fire();
+                if (was && _enabled) Fire();
             };
-            GotKeyboardFocus += (s, e) => Repaint();
-            LostKeyboardFocus += (s, e) => Repaint();
+            GotKeyboardFocus += delegate { Repaint(); };
+            LostKeyboardFocus += delegate { Repaint(); };
             KeyDown += (s, e) =>
             {
                 if (e.Key != Key.Space && e.Key != Key.Enter) return;
@@ -100,9 +194,8 @@ namespace EULord.Ui
             };
         }
 
-        public bool Hovered { get { return _hovered; } }
-        public bool Pressed { get { return _pressed; } }
-        public bool Focused { get { return IsKeyboardFocused; } }
+        protected bool Hovered { get { return _hovered; } }
+        protected bool Pressed { get { return _pressed; } }
 
         public bool Active
         {
@@ -118,75 +211,135 @@ namespace EULord.Ui
 
         protected void Fire()
         {
-            EventHandler handler = Activated;
-            if (handler != null) handler(this, EventArgs.Empty);
+            EventHandler h = Activated;
+            if (h != null) h(this, EventArgs.Empty);
         }
 
-        protected virtual void Repaint() { }
+        /// <summary>The focus ring, drawn without ever changing the element's size.</summary>
+        protected void PaintFocus()
+        {
+            BorderBrush = IsKeyboardFocused ? Theme.Focus : Brushes.Transparent;
+        }
+
+        protected abstract void Repaint();
+
+        /// <summary>Repaints after a theme change.</summary>
+        public void Refresh() { Repaint(); }
     }
 
-    /// <summary>The primary action: a solid red block of colour with the label in white.</summary>
-    internal sealed class PrimaryButton : Pressable
+    /// <summary>
+    /// The one action in the window. A flat red plane whose own bottom edge carries
+    /// the progress band, so the button is the progress bar rather than sitting
+    /// next to one.
+    /// </summary>
+    internal sealed class ActionButton : Pressable
     {
         private readonly TextBlock _label;
+        private readonly Border _band;
+        private readonly Grid _root;
+        private double _progress;
+        private bool _quiet;
 
-        public PrimaryButton(string caption, double width)
+        public ActionButton(string caption)
         {
-            _label = Text.Make(caption, Theme.SizeLead, Theme.Paper, FontWeights.Bold);
+            _label = Text.Action(caption, Theme.OnRed);
             _label.TextWrapping = TextWrapping.NoWrap;
-            _label.HorizontalAlignment = HorizontalAlignment.Center;
             _label.VerticalAlignment = VerticalAlignment.Center;
+            _label.Margin = new Thickness(Theme.Space4, 0, Theme.Space4, 0);
 
-            Child = _label;
-            Width = width;
-            Height = 46;
-            HorizontalAlignment = HorizontalAlignment.Left;
+            _band = new Border
+            {
+                Height = Theme.Band,
+                Background = Theme.RedDeep,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Bottom,
+                Width = 0,
+                SnapsToDevicePixels = true
+            };
+
+            _root = new Grid();
+            _root.Children.Add(_label);
+            _root.Children.Add(_band);
+
+            Child = _root;
+            Height = Theme.ActionHeight;
+            HorizontalAlignment = HorizontalAlignment.Stretch;
             Repaint();
         }
 
-        public string Caption
+        public string Caption { get { return _label.Text; } set { _label.Text = value; } }
+
+        /// <summary>Drawn as an outline instead of a fill, once there is nothing to do.</summary>
+        public bool Quiet { get { return _quiet; } set { _quiet = value; Repaint(); } }
+
+        /// <summary>0 to 1 along the button's bottom edge.</summary>
+        public void SetProgress(double fraction, bool animate)
         {
-            get { return _label.Text; }
-            set { _label.Text = value; }
+            _progress = Math.Max(0, Math.Min(1, fraction));
+            double target = ActualWidth * _progress;
+
+            if (!animate || Theme.ReduceMotion || ActualWidth <= 0)
+            {
+                _band.BeginAnimation(WidthProperty, null);
+                _band.Width = target;
+                return;
+            }
+
+            var anim = new System.Windows.Media.Animation.DoubleAnimation(target, Theme.Wipe)
+            {
+                EasingFunction = Theme.Mech()
+            };
+            _band.BeginAnimation(WidthProperty, anim);
         }
 
         protected override void Repaint()
         {
+            if (_label == null) return;
+            PaintFocus();
+
             if (!Active)
             {
-                Background = Theme.Field;
-                _label.Foreground = Theme.Faint;
-                BorderBrush = Theme.Rule;
-                BorderThickness = new Thickness(1);
+                Background = Brushes.Transparent;
+                _label.Foreground = Theme.Plane2Muted;
                 return;
             }
 
-            Background = Pressed ? Theme.RedDark : (Hovered ? Theme.RedDark : Theme.Red);
-            _label.Foreground = Theme.Paper;
-            BorderBrush = Theme.Ink;
-            BorderThickness = new Thickness(Focused ? 2 : 0);
+            if (_quiet)
+            {
+                Background = Brushes.Transparent;
+                _label.Foreground = Theme.Plane2Ink;
+                BorderBrush = IsKeyboardFocused ? Theme.Focus : Theme.Plane2Muted;
+                return;
+            }
+
+            Background = (Hovered || Pressed) ? Theme.RedDeep : Theme.Red;
+            _label.Foreground = Theme.OnRed;
+            _band.Background = Theme.RedDeep;
         }
     }
 
-    /// <summary>A quiet secondary action: a label with a rule under it, red on hover.</summary>
+    /// <summary>A quiet action: a label with a rule under it.</summary>
     internal sealed class LinkButton : Pressable
     {
         private readonly TextBlock _label;
-        private readonly Border _underline;
+        private readonly Border _rule;
+        private Brush _ink, _hair;
 
-        public LinkButton(string caption, double size)
+        public LinkButton(string caption, Brush ink, Brush hair)
         {
-            _label = Text.Make(caption, size, Theme.Ink, FontWeights.Normal);
+            _ink = ink;
+            _hair = hair;
+
+            _label = Text.Note(caption, ink);
             _label.TextWrapping = TextWrapping.NoWrap;
 
-            _underline = new Border { Height = 1, Background = Theme.Rule, Margin = new Thickness(0, 2, 0, 0) };
+            _rule = new Border { Height = 1, Background = hair, Margin = new Thickness(0, 1, 0, 0), SnapsToDevicePixels = true };
 
             var stack = new StackPanel();
             stack.Children.Add(_label);
-            stack.Children.Add(_underline);
+            stack.Children.Add(_rule);
 
             Child = stack;
-            Padding = new Thickness(0, 1, 0, 1);
             HorizontalAlignment = HorizontalAlignment.Left;
             VerticalAlignment = VerticalAlignment.Center;
             Repaint();
@@ -194,79 +347,92 @@ namespace EULord.Ui
 
         public string Caption { get { return _label.Text; } set { _label.Text = value; } }
 
+        public void Recolour(Brush ink, Brush hair) { _ink = ink; _hair = hair; Repaint(); }
+
         protected override void Repaint()
         {
+            if (_label == null) return;
+            PaintFocus();
+
             if (!Active)
             {
-                _label.Foreground = Theme.Faint;
-                _underline.Background = Theme.Rule;
-                BorderThickness = new Thickness(0);
+                _label.Foreground = Theme.Plane1Muted;
+                _rule.Background = _hair;
                 return;
             }
 
             bool lit = Hovered || Pressed;
-            _label.Foreground = lit ? Theme.Red : Theme.Ink;
-            _underline.Background = lit ? Theme.Red : Theme.Rule;
-            BorderBrush = Theme.Red;
-            BorderThickness = new Thickness(0, 0, 0, Focused ? 2 : 0);
+            _label.Foreground = _ink;
+            _rule.Background = lit ? _ink : _hair;
         }
     }
 
     /// <summary>
-    /// One tickable row: a square that fills red when ticked, a title, and a muted
-    /// note. Used for both the matters-of-taste list and the app list.
+    /// One tickable row. The box is a Plate, so it keeps all four edges at every
+    /// display scale, and its geometry is identical ticked and unticked.
     /// </summary>
     internal sealed class CheckRow : Pressable
     {
-        private readonly Border _box;
-        private readonly Border _fill;
+        private readonly Plate _box;
+        private readonly Path _tick;
         private readonly TextBlock _title;
         private readonly TextBlock _note;
         private bool _checked;
 
         public event EventHandler CheckedChanged;
 
+        /// <summary>The distance from the window edge to a row's text.</summary>
+        public static double TextIndent { get { return Theme.GridMargin + Theme.Checkbox + Theme.Gutter; } }
+
         public CheckRow(string title, string note, bool isChecked)
         {
-            _fill = new Border
-            {
-                Width = 8, Height = 8, Background = Theme.Red,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center
-            };
+            _checked = isChecked;
 
-            _box = new Border
+            _tick = new Path
             {
-                Width = 15, Height = 15,
-                BorderBrush = Theme.Ink,
-                BorderThickness = new Thickness(1),
-                Background = Theme.Paper,
-                VerticalAlignment = VerticalAlignment.Top,
-                Margin = new Thickness(0, 2, 12, 0),
-                Child = _fill,
+                Data = Geometry.Parse("M 3,8 L 6.5,11.5 L 13,4"),
+                Stroke = Theme.OnRed,
+                StrokeThickness = 2.4,
+                StrokeStartLineCap = PenLineCap.Flat,
+                StrokeEndLineCap = PenLineCap.Flat,
+                StrokeLineJoin = PenLineJoin.Miter,
                 SnapsToDevicePixels = true
             };
 
-            _title = Text.Body(title);
-            _note = Text.Make(note, Theme.SizeMicro, Theme.Mute, FontWeights.Normal);
-            _note.Margin = new Thickness(0, 1, 0, 0);
+            _box = new Plate(Theme.Checkbox, Theme.CheckboxStroke);
+            _box.Overlay = _tick;
+            _box.VerticalAlignment = VerticalAlignment.Center;
+            _box.Margin = new Thickness(0, 0, Theme.Gutter, 0);
 
-            var column = new StackPanel();
-            column.Children.Add(_title);
-            if (!string.IsNullOrEmpty(note)) column.Children.Add(_note);
+            _title = Text.Body(title, Theme.Plane1Ink);
+            _title.TextWrapping = TextWrapping.NoWrap;
+            _title.TextTrimming = TextTrimming.CharacterEllipsis;
+            _title.VerticalAlignment = VerticalAlignment.Center;
 
-            var row = new Grid();
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            _note = Text.Note(note, Theme.Plane1Muted);
+            _note.TextWrapping = TextWrapping.NoWrap;
+            _note.VerticalAlignment = VerticalAlignment.Center;
+            _note.Margin = new Thickness(Theme.Gutter, 0, 0, 0);
+
+            // Auto, star, Auto -- never three star columns. Star columns share out the
+            // width, so a long title took the box's column down to a couple of pixels
+            // and the box appeared as a sliver. An Auto column is exactly its content,
+            // so the box is always 16 wide whatever the title says.
+            var grid = new Grid { MinHeight = Theme.ChoiceRow };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
             Grid.SetColumn(_box, 0);
-            Grid.SetColumn(column, 1);
-            row.Children.Add(_box);
-            row.Children.Add(column);
+            Grid.SetColumn(_title, 1);
+            Grid.SetColumn(_note, 2);
+            grid.Children.Add(_box);
+            grid.Children.Add(_title);
+            grid.Children.Add(_note);
 
-            Child = row;
-            Padding = new Thickness(6, 7, 6, 7);
-            _checked = isChecked;
-            Activated += (s, e) => { IsChecked = !IsChecked; };
+            Child = grid;
+            Padding = new Thickness(Theme.GridMargin - 2, 2, Theme.GridMargin - 2, 2);
+            Activated += delegate { IsChecked = !IsChecked; };
             Repaint();
         }
 
@@ -278,180 +444,116 @@ namespace EULord.Ui
                 if (_checked == value) return;
                 _checked = value;
                 Repaint();
-                EventHandler handler = CheckedChanged;
-                if (handler != null) handler(this, EventArgs.Empty);
+                EventHandler h = CheckedChanged;
+                if (h != null) h(this, EventArgs.Empty);
             }
-        }
-
-        public void SetNote(string note)
-        {
-            _note.Text = note ?? string.Empty;
-            _note.Visibility = string.IsNullOrEmpty(note) ? Visibility.Collapsed : Visibility.Visible;
         }
 
         protected override void Repaint()
         {
-            if (_fill == null) return;
+            if (_box == null) return;
+            PaintFocus();
 
-            _fill.Visibility = _checked ? Visibility.Visible : Visibility.Hidden;
-            _box.BorderBrush = Active ? (_checked ? Theme.Red : Theme.Ink) : Theme.Rule;
-            _box.BorderThickness = new Thickness(_checked ? 2 : 1);
-            _title.Foreground = Active ? Theme.Ink : Theme.Faint;
-            Background = Hovered && Active ? Theme.Field : Brushes.Transparent;
-            BorderBrush = Theme.Red;
-            BorderThickness = new Thickness(Focused ? 1 : 0);
+            _tick.Visibility = _checked ? Visibility.Visible : Visibility.Hidden;
+            _box.Paint(_checked ? Theme.Red : Theme.Plane1Ink,
+                       _checked ? Theme.Red : Theme.Plane1);
+            _tick.Stroke = Theme.OnRed;
+
+            _title.Foreground = Theme.Plane1Ink;
+            _note.Foreground = Theme.Plane1Muted;
+            Background = (Hovered && Active) ? Theme.Hover1 : Brushes.Transparent;
         }
     }
 
     /// <summary>
-    /// A three-way switch for the advanced table: Auto, EEA, Global. The chosen
-    /// segment is filled; the others are outlined.
-    /// </summary>
-    internal sealed class Segmented : StackPanel
-    {
-        private readonly List<Pressable> _segments = new List<Pressable>();
-        private readonly List<TextBlock> _labels = new List<TextBlock>();
-        private int _selected;
-
-        public event EventHandler SelectionChanged;
-
-        public Segmented(string[] captions, int selected)
-        {
-            Orientation = Orientation.Horizontal;
-            _selected = selected;
-
-            for (int i = 0; i < captions.Length; i++)
-            {
-                int index = i;
-                TextBlock label = Text.Make(captions[i], Theme.SizeMicro, Theme.Ink, FontWeights.Normal);
-                label.TextWrapping = TextWrapping.NoWrap;
-                label.HorizontalAlignment = HorizontalAlignment.Center;
-                label.VerticalAlignment = VerticalAlignment.Center;
-
-                var segment = new Segment { Child = label, Padding = new Thickness(9, 3, 9, 3) };
-                segment.Margin = new Thickness(i == 0 ? 0 : -1, 0, 0, 0);
-                segment.Activated += (s, e) => { Selected = index; };
-
-                _segments.Add(segment);
-                _labels.Add(label);
-                Children.Add(segment);
-            }
-            Repaint();
-        }
-
-        public int Selected
-        {
-            get { return _selected; }
-            set
-            {
-                if (_selected == value) return;
-                _selected = value;
-                Repaint();
-                EventHandler handler = SelectionChanged;
-                if (handler != null) handler(this, EventArgs.Empty);
-            }
-        }
-
-        /// <summary>
-        /// Index 0 is the resting choice. Selecting it is drawn quietly, because across
-        /// a table of 68 rows the default is almost every row and filling them all would
-        /// be a wall of black. Any other selection is a deliberate override, so it takes
-        /// the accent and the handful of changed rows stand out at a glance.
-        /// </summary>
-        private void Repaint()
-        {
-            bool overridden = _selected != 0;
-
-            for (int i = 0; i < _segments.Count; i++)
-            {
-                bool on = i == _selected;
-                Pressable segment = _segments[i];
-
-                segment.Background = on && overridden ? Theme.Red : Theme.Paper;
-                segment.BorderBrush = segment.IsKeyboardFocused ? Theme.Red
-                                    : (on && overridden ? Theme.Red : Theme.Rule);
-                segment.BorderThickness = new Thickness(1);
-
-                _labels[i].Foreground = on ? (overridden ? Theme.Paper : Theme.Ink) : Theme.Faint;
-                _labels[i].FontWeight = on ? FontWeights.Bold : FontWeights.Normal;
-            }
-        }
-
-        private sealed class Segment : Pressable
-        {
-            public Segment() { }
-            protected override void Repaint()
-            {
-                var parent = Parent as Segmented;
-                if (parent != null) parent.Repaint();
-            }
-        }
-    }
-
-    /// <summary>
-    /// A section that opens. Progressive disclosure is the whole GUI structure: the
-    /// status and the one button are always visible, everything else is behind a
-    /// heading the user can open. The marker is a typographic plus and minus rather
-    /// than a chevron, which suits the grid.
+    /// A section that opens. Progressive disclosure is the whole structure: the
+    /// status and the one action are always visible, everything else is behind a
+    /// heading. The marker is a typographic plus that loses its upright stroke,
+    /// which suits the grid better than a rotating chevron.
     /// </summary>
     internal sealed class Section : StackPanel
     {
-        private readonly TextBlock _marker;
         private readonly TextBlock _title;
         private readonly TextBlock _summary;
+        private readonly TextBlock _flag;
+        private readonly Border _barH, _barV;
         private readonly StackPanel _body;
-        private readonly Pressable _header;
-        private bool _open;
+        private readonly SectionHeader _header;
+        private readonly Border _rule;
+        private bool _open, _everOpened;
 
-        /// <summary>Called the first time the section opens, so heavy work stays lazy.</summary>
         public event EventHandler FirstOpened;
-
-        private bool _everOpened;
 
         public Section(string title, string summary)
         {
-            _marker = Text.Make("+", Theme.SizeHead, Theme.Red, FontWeights.Bold);
-            _marker.Width = 24;
-            _marker.TextWrapping = TextWrapping.NoWrap;
-            _marker.VerticalAlignment = VerticalAlignment.Center;
-
-            _title = Text.Make(title, Theme.SizeLead, Theme.Ink, FontWeights.Bold);
+            _title = Text.Section(title, Theme.Plane1Ink);
             _title.TextWrapping = TextWrapping.NoWrap;
             _title.VerticalAlignment = VerticalAlignment.Center;
 
-            _summary = Text.Make(summary, Theme.SizeMicro, Theme.Mute, FontWeights.Normal);
+            _flag = Text.MicroStrong(string.Empty, Theme.RedInk);
+            _flag.TextWrapping = TextWrapping.NoWrap;
+            _flag.VerticalAlignment = VerticalAlignment.Center;
+            _flag.Margin = new Thickness(Theme.Space3, 0, 0, 0);
+            _flag.Visibility = Visibility.Collapsed;
+
+            var titleRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            titleRow.Children.Add(_title);
+            titleRow.Children.Add(_flag);
+
+            _summary = Text.Note(summary, Theme.Plane1Muted);
             _summary.TextWrapping = TextWrapping.NoWrap;
             _summary.VerticalAlignment = VerticalAlignment.Center;
-            _summary.HorizontalAlignment = HorizontalAlignment.Right;
-            _summary.Margin = new Thickness(16, 0, 0, 0);
 
-            var grid = new Grid();
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            Grid.SetColumn(_marker, 0);
-            Grid.SetColumn(_title, 1);
-            Grid.SetColumn(_summary, 2);
-            grid.Children.Add(_marker);
-            grid.Children.Add(_title);
-            grid.Children.Add(_summary);
+            // A plus built from two filled bars: the upright one scales away when the
+            // section opens, leaving a minus. No stroke, so no edge to lose.
+            _barH = new Border { Width = 14, Height = 1.5, Background = Theme.Plane1Ink, SnapsToDevicePixels = true };
+            _barV = new Border
+            {
+                Width = 1.5, Height = 14, Background = Theme.Plane1Ink, SnapsToDevicePixels = true,
+                RenderTransform = new ScaleTransform(1, 1, 0.75, 7),
+                RenderTransformOrigin = new Point(0.5, 0.5)
+            };
+            var marker = new Grid { Width = 14, Height = 14, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
+            marker.Children.Add(_barH);
+            marker.Children.Add(_barV);
 
-            _header = new SectionHeader { Child = grid, Padding = new Thickness(0, 13, 0, 13) };
-            _header.Activated += (s, e) => { IsOpen = !IsOpen; };
+            Grid head = Layout.Columns();
+            head.Height = Theme.SectionHead;
+            Grid.SetColumn(titleRow, 0);
+            Grid.SetColumnSpan(titleRow, 4);
+            Grid.SetColumn(_summary, 4);
+            Grid.SetColumnSpan(_summary, 7);
+            Grid.SetColumn(marker, 11);
+            head.Children.Add(titleRow);
+            head.Children.Add(_summary);
+            head.Children.Add(marker);
 
-            _body = new StackPanel { Margin = new Thickness(24, 0, 0, 18), Visibility = Visibility.Collapsed };
+            _header = new SectionHeader
+            {
+                Child = head,
+                Padding = new Thickness(Theme.GridMargin - 2, 0, Theme.GridMargin - 2, 0)
+            };
+            _header.Activated += delegate { IsOpen = !IsOpen; };
 
-            Children.Add(Theme.HairRule(1, Theme.Rule, 0, 0));
+            _body = new StackPanel { Visibility = Visibility.Collapsed };
+            _rule = new Border { Height = 1, Background = Theme.Plane1Hair, SnapsToDevicePixels = true };
+
+            Children.Add(_rule);
             Children.Add(_header);
             Children.Add(_body);
         }
 
         public StackPanel Body { get { return _body; } }
 
-        public string Summary
+        public string Summary { get { return _summary.Text; } set { _summary.Text = value ?? string.Empty; } }
+
+        public string Flag
         {
-            get { return _summary.Text; }
-            set { _summary.Text = value ?? string.Empty; }
+            set
+            {
+                _flag.Text = value ?? string.Empty;
+                _flag.Visibility = string.IsNullOrEmpty(value) ? Visibility.Collapsed : Visibility.Visible;
+            }
         }
 
         public bool IsOpen
@@ -460,66 +562,91 @@ namespace EULord.Ui
             set
             {
                 _open = value;
-                _marker.Text = value ? "−" : "+";   // minus sign, not a hyphen
                 _body.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
+
+                var scale = (ScaleTransform)_barV.RenderTransform;
+                if (Theme.ReduceMotion)
+                {
+                    scale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+                    scale.ScaleY = value ? 0 : 1;
+                }
+                else
+                {
+                    var anim = new System.Windows.Media.Animation.DoubleAnimation(value ? 0 : 1, Theme.Expand)
+                    {
+                        EasingFunction = Theme.Mech()
+                    };
+                    scale.BeginAnimation(ScaleTransform.ScaleYProperty, anim);
+                }
 
                 if (!value || _everOpened) return;
                 _everOpened = true;
-                EventHandler handler = FirstOpened;
-                if (handler != null) handler(this, EventArgs.Empty);
+                EventHandler h = FirstOpened;
+                if (h != null) h(this, EventArgs.Empty);
             }
+        }
+
+        public void Refresh()
+        {
+            _title.Foreground = Theme.Plane1Ink;
+            _summary.Foreground = Theme.Plane1Muted;
+            _flag.Foreground = Theme.RedInk;
+            _barH.Background = Theme.Plane1Ink;
+            _barV.Background = Theme.Plane1Ink;
+            _rule.Background = Theme.Plane1Hair;
+            _header.Refresh();
         }
 
         private sealed class SectionHeader : Pressable
         {
             protected override void Repaint()
             {
-                Background = Hovered ? Theme.Field : Brushes.Transparent;
-                BorderBrush = Theme.Red;
-                BorderThickness = new Thickness(0, 0, 0, IsKeyboardFocused ? 2 : 0);
+                PaintFocus();
+                Background = Hovered ? Theme.Hover1 : Brushes.Transparent;
             }
         }
     }
 
     internal static class Layout
     {
-        /// <summary>A label/value pair on the grid: label in the fixed left column, value flush left beside it.</summary>
-        public static Grid ReadoutRow(string label, UIElement value)
+        /// <summary>
+        /// The 12-column grid every screen is built on. Columns are equal and the
+        /// gutter is part of each column's right edge, so a child in column n always
+        /// starts on the same line whatever it contains.
+        /// </summary>
+        public static Grid Columns()
         {
-            var grid = new Grid { Margin = new Thickness(0, 0, 0, Theme.RowGap) };
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(Theme.LabelColumn) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-            TextBlock labelBlock = Text.Micro(label, Theme.Mute);
-            labelBlock.VerticalAlignment = VerticalAlignment.Center;
-
-            Grid.SetColumn(labelBlock, 0);
-            Grid.SetColumn(value, 1);
-            grid.Children.Add(labelBlock);
-            grid.Children.Add(value);
+            var grid = new Grid();
+            for (int i = 0; i < 12; i++)
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             return grid;
         }
 
-        public static Grid ReadoutRow(string label, string value, Brush brush)
+        public static void Place(UIElement element, int column, int span)
         {
-            TextBlock block = Text.Make(value, Theme.SizeBody, brush, FontWeights.Normal);
-            block.TextWrapping = TextWrapping.NoWrap;
-            block.VerticalAlignment = VerticalAlignment.Center;
-            return ReadoutRow(label, block);
+            Grid.SetColumn(element, column);
+            Grid.SetColumnSpan(element, span);
+            var fe = element as FrameworkElement;
+            if (fe != null && column + span < 12) fe.Margin = Pad(fe.Margin, Theme.Gutter);
         }
 
-        public static StackPanel Stack(double bottomMargin)
+        private static Thickness Pad(Thickness t, double right)
         {
-            return new StackPanel { Margin = new Thickness(0, 0, 0, bottomMargin) };
+            return new Thickness(t.Left, t.Top, Math.Max(t.Right, right), t.Bottom);
+        }
+
+        public static Border Rule(Brush brush)
+        {
+            return new Border { Height = 1, Background = brush, SnapsToDevicePixels = true };
         }
 
         public static Brush BrushFor(CheckResult result)
         {
             switch (result)
             {
-                case CheckResult.Pass: return Theme.Ink;
-                case CheckResult.Fail: return Theme.Red;
-                default: return Theme.Mute;
+                case CheckResult.Pass: return Theme.RedInk;
+                case CheckResult.Fail: return Theme.RedInk;
+                default: return Theme.Plane1Muted;
             }
         }
 

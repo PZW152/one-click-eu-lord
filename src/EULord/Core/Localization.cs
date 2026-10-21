@@ -102,6 +102,17 @@ namespace EULord.Core
         public static readonly L StatusUnknown = new L("無法判斷", "无法判断", "Cannot tell");
 
         public static readonly L BenefitsActive = new L("好處生效中", "好处生效中", "benefits active");
+        public static readonly L AppliedSummary = new L(
+            "{0} 項好處已寫入，{1} 項損失保留原樣。部分項目要重新開機才會出現。",
+            "{0} 项好处已写入，{1} 项损失保持原样。部分项目要重启才会出现。",
+            "{0} gains are in place and the {1} losses were left alone. Some only appear after a restart.");
+        public static readonly L NotAppliedSummary = new L(
+            "這台電腦目前是一般的 Windows 11。套用後取得愛爾蘭歐盟版的好處，原本的功能一項不少。",
+            "这台电脑目前是普通的 Windows 11。应用后获得爱尔兰欧盟版的好处，原本的功能一项不少。",
+            "An ordinary Windows 11 so far. Applying takes Ireland's EU gains without giving up anything you have.");
+        public static readonly L LegendGains = new L("好處，全部採用", "好处，全部采用", "gains, all taken");
+        public static readonly L LegendTaste = new L("見仁見智，已選 {0}", "见仁见智，已选 {0}", "matters of taste, {0} picked");
+        public static readonly L LegendLosses = new L("損失，保留", "损失，保留", "losses, kept");
         public static readonly L OfTotal = new L("共", "共", "of");
 
         public static readonly L RowRegion = new L("地區", "地区", "Region");
@@ -157,6 +168,19 @@ namespace EULord.Core
             "逐条覆写全部 {0} 条策略、改用其他 EEA 国家、查看验证结果。",
             "Override any of the {0} policies individually, pick another EEA country, read the verification report.");
         public static readonly L SecRestore = new L("還原與移除", "还原与移除", "Restore and remove");
+        public static readonly L SecChoicesSummary = new L(
+            "預設保留 Windows 原本的樣子，勾選才改成歐盟版。已選 {0} / {1} 項",
+            "默认保留 Windows 原本的样子，勾选才改成欧盟版。已选 {0} / {1} 项",
+            "Kept as Windows has them unless you tick one. {0} of {1} picked");
+        public static readonly L SecAppsSummary = new L(
+            "一律呼叫 App 自己的解除安裝程式，逐一確認",
+            "一律调用 App 自己的卸载程序，逐一确认",
+            "Always the app's own uninstaller, confirmed one at a time");
+        public static readonly L RestoreSummary = new L(
+            "原檔備份 2 份，隨時可以還原",
+            "原文件备份 2 份，随时可以还原",
+            "Two backups kept; restore whenever you like");
+        public static readonly L PendingApply = new L("尚未套用", "尚未应用", "not applied yet");
         public static readonly L NoBackupShort = new L("無備份", "无备份", "No backup");
 
         // -- choices / policy table ------------------------------------------
@@ -235,6 +259,9 @@ namespace EULord.Core
         public static readonly L Cancel = new L("取消", "取消", "Cancel");
         public static readonly L Confirm = new L("確定", "确定", "Confirm");
         public static readonly L Close = new L("關閉", "关闭", "Close");
+        public static readonly L Minimise = new L("最小化", "最小化", "Minimise");
+        public static readonly L Maximise = new L("最大化", "最大化", "Maximise");
+        public static readonly L ThemeFollowSystem = new L("跟隨系統", "跟随系统", "Match Windows");
 
         // -- verification -----------------------------------------------------
         public static readonly L VerifyTitle = new L("驗證結果", "验证结果", "Verification");

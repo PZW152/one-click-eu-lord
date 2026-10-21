@@ -39,6 +39,12 @@ jobs:
         shell: pwsh
         run: .\tools\Check-Catalog.ps1
 
+      # The design system and the window are meant to read the same numbers. This
+      # fails if the generated theme was hand-edited instead of the tokens.
+      - name: Theme matches the design tokens
+        shell: pwsh
+        run: .\tools\Check-Theme.ps1
+
       - name: Source encoding and line endings
         shell: pwsh
         run: .\tools\Check-Encoding.ps1

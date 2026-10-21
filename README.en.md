@@ -6,6 +6,8 @@ Gives an ordinary Windows 11 install the treatment Ireland gets under the EU and
 
 ![The window](docs/images/screenshot-en.png)
 
+<sub>Dark: [docs/images/screenshot-zh-Hant-dark.png](docs/images/screenshot-zh-Hant-dark.png). The window follows the light/dark setting in Windows.</sub>
+
 ---
 
 ## Three steps

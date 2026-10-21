@@ -6,6 +6,8 @@
 
 ![界面](docs/images/screenshot-zh-Hans.png)
 
+<sub>深色模式：[docs/images/screenshot-zh-Hant-dark.png](docs/images/screenshot-zh-Hant-dark.png)。界面跟随 Windows 的浅色／深色设置自动切换。</sub>
+
 ---
 
 ## 三步骤
