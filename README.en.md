@@ -16,6 +16,16 @@ Gives an ordinary Windows 11 install the treatment Ireland gets under the EU and
 
 That is the whole thing. Nothing to install, nothing to configure, no instructions to read.
 
+### If Windows or your browser blocks it
+
+There is **no code-signing certificate**, so Windows does not recognise this program. That is the most common reason people find it "doesn't work", and it says nothing about whether the program is sound:
+
+- **The browser warns it is "not commonly downloaded"** → choose Keep on the download.
+- **The blue "Windows protected your PC" screen** → More info → Run anyway.
+- **Your antivirus objects** → to write one registry value the tool copies `reg.exe` to a temporary name (see [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.en.md) §7), and some scanners treat that as suspicious. The source is all here, and you can build it yourself.
+
+If you would rather not click through those warnings, [building it yourself](#building-it-yourself) is one command and needs nothing installed.
+
 ---
 
 ## Why not just set the region to Ireland?
