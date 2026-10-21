@@ -13,7 +13,9 @@ Complete rewrite. The v1 PowerShell scripts are gone, replaced by a single `EULo
 
 - **修正 v1 的核心錯誤。** v1 把「超集」實作成「完全照抄歐盟版」，於是連歐盟版**拿掉**的功能也一起收下 —— 朗讀程式的腳本擴充、Xbox 全螢幕體驗、時鐘與行事曆的快速動作等等。README 當時還寫了「工具不會替你關掉任何功能」，那是錯的。現在 68 條差異逐條分類成 **好處 40／損失 7／見仁見智 21**：好處採用歐盟版，損失**保留原本的**，見仁見智預設不動、由你勾選。
 - **修正說明文件的反向錯誤。** 舊的 `docs/FEATURES.md` 把「網頁搜尋需要 Edge」那一條寫反了。新的 [docs/POLICIES.md](docs/POLICIES.md) 由 `tools/New-PolicyTable.ps1` 從程式碼產生，不可能再跟實作講不一樣的話。
-- **單一 exe，圖形介面。** 約 165 KB、零依賴、不需安裝任何 runtime（.NET Framework 4.8 是 Windows 11 內建的）。瑞士國際主義設計風格；單頁加展開區，進階設定不會擋到第一次使用的人。
+- **單一 exe，圖形介面。** 約 182 KB、零依賴、不需安裝任何 runtime（.NET Framework 4.8 是 Windows 11 內建的）。
+- **瑞士國際主義設計，「色面疊壓」。** 層級來自兩塊平塗色面在 12 欄網格上錯位疊壓，不靠陰影；套用時上層色面沿網格往左推一欄。**深淺兩套主題**，跟隨 Windows 設定自動切換。**標題列自己畫**（透過 WindowChrome，所以 Aero Snap、拖到頂端最大化、工作列縮圖都還在）。強調色是低飽和的氧化紅 `#B3402E`，一個畫面只用一次。字體全用 Arial —— 瑞士風就是 Helvetica 那一派，而 Arial 是 Windows 上與它等寬的那一款，不必內嵌 600 KB 的字體。
+- 所有數值出自 `design/tokens.json`，`tools/New-Theme.ps1` 產生程式用的 `Theme.cs`，CI 會重新產生並比對，設計稿和程式不可能走樣。
 - **68 條全部可逐條覆寫**，進階頁列出全部，可強制「歐盟版／原本的／自動」。
 - **代勞卸載 App**：Edge、Store、Copilot、手機連結、小工具、Xbox、Teams、OneDrive 等。一律走 App 自己註冊的卸載程式，**絕不手動刪檔**；逐一確認；已卸載的有「重新安裝」。命令列刻意不提供這個功能。
 - **套用後實際驗證**並給診斷建議，分成「已確定」與「觀察到的」兩層，量不到的就說無法判斷。
@@ -21,13 +23,17 @@ Complete rewrite. The v1 PowerShell scripts are gone, replaced by a single `EULo
 - **不再動系統檔案的權限。** v1 的 `takeown` + `icacls` 其實沒必要（原廠 DACL 已給 Administrators 完全控制），而且不可逆（擁有權要不回 TrustedInstaller，錯誤 1307）。v2 就地寫入，必要時才用 `SeRestorePrivilege`，兩條路都不留痕跡。
 - **還原更正確**：記錄 `DeviceRegion` 原本是否存在，還原時該刪就刪，而不是寫回一個猜的值。
 - 三語自動偵測、可手動切換；日誌一律英文、公曆時間。
-- 280 項測試，不需系統管理員、不碰系統；CI 另外檢查編碼、版號一致性，以及分類表對 runner 上那個 Windows 版本的涵蓋率。
+- **寫完策略檔會讀回來比對**，對不上就立刻把 Windows 原檔放回去再回報失敗，不會留下一台被這支工具弄壞的機器。
+- 可靠性排查（實際拿真機和六種壞掉的策略檔跑出來的，不是讀程式碼讀出來的）：日誌不再寫進 stdout，`--status --json` 現在是乾淨可解析的 JSON；`schtasks` 和備援寫入不再有讀管道順序造成的卡死；解除安裝命令只有空白時不再崩；本機沒有 `DeviceRegion` 時不再沿用 v1 記的舊值去還原一個從來不存在的地區；空的策略檔不再被誤判成「已經是我們改寫的」。
+- 332 項測試，不需系統管理員、不碰系統；CI 另外檢查編碼、版號一致性、主題與設計 token 是否一致，以及分類表對 runner 上那個 Windows 版本的涵蓋率。
 
 **简体中文**
 
 - **修正 v1 的核心错误。** v1 把「超集」实现成「完全照抄欧盟版」，于是连欧盟版**拿掉**的功能也一起收下 —— 讲述人的脚本扩展、Xbox 全屏体验、时钟与日历的快速操作等等。README 当时还写了「工具不会替你关掉任何功能」，那是错的。现在 68 条差异逐条分类成 **好处 40／损失 7／见仁见智 21**：好处采用欧盟版，损失**保留原本的**，见仁见智默认不动、由你勾选。
 - **修正文档的反向错误。** 旧的 `docs/FEATURES.md` 把「网页搜索需要 Edge」那一条写反了。新的 [docs/POLICIES.md](docs/POLICIES.md) 由 `tools/New-PolicyTable.ps1` 从代码生成，不可能再跟实现讲不一样的话。
-- **单一 exe，图形界面。** 约 165 KB、零依赖、不需安装任何 runtime（.NET Framework 4.8 是 Windows 11 内置的）。瑞士国际主义设计风格；单页加展开区，高级设置不会挡到第一次使用的人。
+- **单一 exe，图形界面。** 约 182 KB、零依赖、不需安装任何 runtime（.NET Framework 4.8 是 Windows 11 内置的）。
+- **瑞士国际主义设计，「色面叠压」。** 层级来自两块平涂色面在 12 栏网格上错位叠压，不靠阴影；应用时上层色面沿网格往左推一栏。**深浅两套主题**，跟随 Windows 设置自动切换。**标题栏自己画**（通过 WindowChrome，所以 Aero Snap、拖到顶端最大化、任务栏缩略图都还在）。强调色是低饱和的氧化红 `#B3402E`，一个画面只用一次。字体全用 Arial —— 瑞士风就是 Helvetica 那一派，而 Arial 是 Windows 上与它等宽的那一款，不必内嵌 600 KB 的字体。
+- 所有数值出自 `design/tokens.json`，`tools/New-Theme.ps1` 生成程序用的 `Theme.cs`，CI 会重新生成并比对，设计稿和程序不可能走样。
 - **68 条全部可逐条覆写**，高级页列出全部，可强制「欧盟版／原本的／自动」。
 - **帮忙卸载 App**：Edge、Store、Copilot、手机连接、小组件、Xbox、Teams、OneDrive 等。一律走 App 自己注册的卸载程序，**绝不手动删文件**；逐一确认；已卸载的有「重新安装」。命令行刻意不提供这个功能。
 - **应用后实际验证**并给诊断建议，分成「已确定」与「观察到的」两层，量不到的就说无法判断。
@@ -35,7 +41,9 @@ Complete rewrite. The v1 PowerShell scripts are gone, replaced by a single `EULo
 - **不再动系统文件的权限。** v1 的 `takeown` + `icacls` 其实没必要（出厂 DACL 已给 Administrators 完全控制），而且不可逆（所有权要不回 TrustedInstaller，错误 1307）。v2 就地写入，必要时才用 `SeRestorePrivilege`，两条路都不留痕迹。
 - **还原更正确**：记录 `DeviceRegion` 原本是否存在，还原时该删就删，而不是写回一个猜的值。
 - 三语自动检测、可手动切换；日志一律英文、公历时间。
-- 280 项测试，不需管理员、不碰系统；CI 另外检查编码、版本号一致性，以及分类表对 runner 上那个 Windows 版本的覆盖率。
+- **写完策略文件会读回来比对**，对不上就立刻把 Windows 原文件放回去再报告失败，不会留下一台被这个工具弄坏的机器。
+- 可靠性排查（实际拿真机和六种坏掉的策略文件跑出来的，不是读代码读出来的）：日志不再写进 stdout，`--status --json` 现在是干净可解析的 JSON；`schtasks` 和备用写入不再有读管道顺序造成的卡死；卸载命令只有空白时不再崩；本机没有 `DeviceRegion` 时不再沿用 v1 记的旧值去还原一个从来不存在的区域；空的策略文件不再被误判成「已经是我们改写的」。
+- 332 项测试，不需管理员、不碰系统；CI 另外检查编码、版本号一致性、主题与设计 token 是否一致，以及分类表对 runner 上那个 Windows 版本的覆盖率。
 
 **English**
 
@@ -50,10 +58,19 @@ Complete rewrite. The v1 PowerShell scripts are gone, replaced by a single `EULo
   had "Edge is required for web search" the wrong way round. The new
   [docs/POLICIES.md](docs/POLICIES.md) is generated from the code by
   `tools/New-PolicyTable.ps1`, so it cannot disagree with the implementation again.
-- **One exe with a GUI.** About 165 KB, no dependencies, no runtime to install
-  (.NET Framework 4.8 ships inside Windows 11). Swiss International Typographic
-  Style; a single page with disclosure, so the advanced settings never block a
-  first-time user.
+- **One exe with a GUI.** About 182 KB, no dependencies, no runtime to install
+  (.NET Framework 4.8 ships inside Windows 11).
+- **Swiss International Typographic Style, built on overlapping colour planes.**
+  Depth comes from two flat planes crossing on a 12-column grid rather than from
+  shadow, and applying slides the upper plane one column left. **Both themes
+  ship** and the window follows the Windows light/dark setting. **The title bar
+  is drawn by the app** through WindowChrome, so Aero Snap, drag-to-maximise and
+  the taskbar thumbnail all still work. The accent is a muted iron-oxide
+  `#B3402E`, used once per view. Arial throughout: Swiss is Helvetica's style and
+  Arial is the Helvetica-metric face already on every Windows, so nothing is
+  embedded.
+- Every value comes from `design/tokens.json` through `tools/New-Theme.ps1`, and
+  CI regenerates and compares, so the design system and the window cannot drift.
 - **All 68 policies are individually overridable** — force EU, global or automatic
   from the advanced table.
 - **Uninstalling Microsoft's apps**: Edge, Store, Copilot, Phone Link, Widgets, Xbox,
@@ -75,9 +92,21 @@ Complete rewrite. The v1 PowerShell scripts are gone, replaced by a single `EULo
   deletes the value on restore if it did not, instead of writing back a guess.
 - Three languages, auto-detected and switchable; the log stays English with Gregorian
   dates.
-- 280 tests that need no administrator rights and touch nothing on the machine. CI
-  additionally checks encodings, version consistency, and the catalog's coverage of
-  the Windows build on the runner.
+- **The policy file is read back after writing** and checked against what was
+  meant to be written. If it does not match, the Windows original goes back
+  immediately and the run reports failure, so a machine is never left holding a
+  policy file this tool damaged.
+- A reliability pass, found by running the real command line against the real
+  machine and against six damaged or foreign policy files rather than by reading
+  the code: log output no longer goes to stdout, so `--status --json` is now
+  parseable; two child-process calls that read one pipe to the end before the
+  other no longer deadlock; an uninstall command of only whitespace no longer
+  throws; a machine with no `DeviceRegion` no longer inherits a stale v1 record
+  and restores a region it never had; and an empty policy file is no longer
+  mistaken for our own rewrite.
+- 332 tests that need no administrator rights and touch nothing on the machine. CI
+  additionally checks encodings, version consistency, that the theme matches the
+  design tokens, and the catalog's coverage of the Windows build on the runner.
 
 ### Upgrading from v1
 
