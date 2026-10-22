@@ -2,7 +2,6 @@
 name: 功能建议
 about: 提出新功能、改进方向或使用体验建议
 title: "[建议] "
-labels: enhancement
 ---
 
 ### 你希望改善什么？
