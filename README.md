@@ -4,6 +4,15 @@
 
 把一台普通安裝的 Windows 11，變成享有愛爾蘭（歐盟＋EEA）待遇的機器 —— **只收好處，不收損失**，而且更新之後也不會被刷回去。
 
+## 建議與回饋
+
+歡迎提出新功能、操作流程、介面文字、文件補充或實際使用上的建議。不需要懂程式，直接用中文描述即可。
+
+- [前往建議徵集貼文](https://github.com/PZW152/one-click-eu-lord/issues/2)
+- [提出一條新的功能建議](https://github.com/PZW152/one-click-eu-lord/issues/new?template=feature_request.md)
+
+---
+
 ![介面](docs/images/screenshot-zh-Hant.png)
 
 <sub>深色模式：[docs/images/screenshot-zh-Hant-dark.png](docs/images/screenshot-zh-Hant-dark.png)。介面跟隨 Windows 的淺色／深色設定自動切換。</sub>
