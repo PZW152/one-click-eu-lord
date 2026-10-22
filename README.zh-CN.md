@@ -4,6 +4,10 @@
 
 把一台普通安装的 Windows 11，变成享有爱尔兰（欧盟＋EEA）待遇的机器 —— **只收好处，不收损失**，而且更新之后也不会被刷回去。
 
+![界面](docs/images/screenshot-zh-Hans.png)
+
+<sub>深色模式：[docs/images/screenshot-zh-Hant-dark.png](docs/images/screenshot-zh-Hant-dark.png)。界面跟随 Windows 的浅色／深色设置自动切换。</sub>
+
 ## 建议与反馈
 
 欢迎提出新功能、操作流程、界面文字、文档补充或实际使用中的建议。不需要懂编程，直接用中文描述即可。
@@ -12,10 +16,6 @@
 - [提交一条新的功能建议](https://github.com/PZW152/one-click-eu-lord/issues/new?template=feature_request.md)
 
 ---
-
-![界面](docs/images/screenshot-zh-Hans.png)
-
-<sub>深色模式：[docs/images/screenshot-zh-Hant-dark.png](docs/images/screenshot-zh-Hant-dark.png)。界面跟随 Windows 的浅色／深色设置自动切换。</sub>
 
 ---
 
