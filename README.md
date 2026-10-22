@@ -17,8 +17,6 @@
 
 ---
 
----
-
 ## 三步驟
 
 1. 到 [Releases](https://github.com/PZW152/one-click-eu-lord/releases/latest) 下載 **`EULord.exe`**
