@@ -902,7 +902,6 @@ fn replace_file(target: &Path, temp: &Path) -> Result<()> {
 
 fn harden_directory(path: &Path) -> Result<()> {
     let sddl = wide_str("D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;FR;;;BU)");
-    let path = wide_path(path);
     let mut descriptor = PSECURITY_DESCRIPTOR::default();
     unsafe {
         ConvertStringSecurityDescriptorToSecurityDescriptorW(
@@ -912,13 +911,32 @@ fn harden_directory(path: &Path) -> Result<()> {
             None,
         )
         .map_err(|err| CoreError::Message(format!("security descriptor: {err}")))?;
-        let ok = SetFileSecurityW(PCWSTR(path.as_ptr()), DACL_SECURITY_INFORMATION, descriptor)
-            .as_bool();
+        let result = apply_dacl_tree(path, descriptor);
         let _ = LocalFree(Some(HLOCAL(descriptor.0)));
-        if !ok {
-            return Err(CoreError::Message(
-                "failed to apply restrictive ACL to data directory".to_string(),
-            ));
+        result
+    }
+}
+
+fn apply_dacl_tree(path: &Path, descriptor: PSECURITY_DESCRIPTOR) -> Result<()> {
+    let wide = wide_path(path);
+    let ok = unsafe {
+        SetFileSecurityW(PCWSTR(wide.as_ptr()), DACL_SECURITY_INFORMATION, descriptor).as_bool()
+    };
+    if !ok {
+        return Err(CoreError::Message(format!(
+            "failed to apply restrictive ACL to {}",
+            path.display()
+        )));
+    }
+    let entries = std::fs::read_dir(path)?;
+    for entry in entries {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        if file_type.is_symlink() {
+            continue;
+        }
+        if file_type.is_dir() || file_type.is_file() {
+            apply_dacl_tree(&entry.path(), descriptor)?;
         }
     }
     Ok(())
