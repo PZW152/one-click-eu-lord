@@ -24,6 +24,8 @@ Windows 的 EU/EEA 政策檔裡有 68 條與全球版不同的條目。直接把
 
 ![Overview](docs/images/overview-v3.png)
 
+![First-run review](docs/images/review-v3.png)
+
 - 側邊欄：總覽、政策矩陣、EU 解鎖、維護、關於。
 - 第一次套用前會顯示 diff 摘要；成功套用後，同一顆按鈕就是真正的一鍵套用。
 - 簡易模式只列出 21 個見仁見智項目；專家模式可搜尋全部 68 條，逐條選 `AUTO / EU / GLOBAL`。

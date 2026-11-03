@@ -1759,6 +1759,51 @@ impl App {
                         }
                     }
                     ui.add_space(8.0);
+                    if let Some(plan) = &plan {
+                        ui.label(
+                            RichText::new("DIFF SAMPLE // TOP CHANGES")
+                                .monospace()
+                                .size(9.0)
+                                .color(AMBER),
+                        );
+                        for decision in plan.changed_decisions().take(7) {
+                            let class = decision.class.map(|c| c.short()).unwrap_or("UNKNOWN");
+                            ui.horizontal(|ui| {
+                                ui.label(
+                                    RichText::new(format!("[{}]", class))
+                                        .monospace()
+                                        .size(8.0)
+                                        .color(class_color(decision.class)),
+                                );
+                                ui.label(
+                                    RichText::new(policy_description(decision, self.lang))
+                                        .monospace()
+                                        .size(9.0)
+                                        .color(INK),
+                                );
+                                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                    ui.label(
+                                        RichText::new(format!(
+                                            "{} -> {}",
+                                            decision.global, decision.target
+                                        ))
+                                        .monospace()
+                                        .size(8.0)
+                                        .color(MUTED),
+                                    );
+                                });
+                            });
+                        }
+                        if plan.changed_policies > 7 {
+                            ui.label(
+                                RichText::new("... full diff in POLICY MATRIX")
+                                    .monospace()
+                                    .size(8.0)
+                                    .color(DIM),
+                            );
+                        }
+                    }
+                    ui.add_space(8.0);
                     ui.label(
                         RichText::new(self.t("apply_no_uninstall"))
                             .monospace()
@@ -1775,6 +1820,10 @@ impl App {
                     }
                     ui.add_space(12.0);
                     ui.horizontal(|ui| {
+                        if ui.add(secondary_button(self.t("nav_policies"))).clicked() {
+                            self.show_review = false;
+                            self.page = Page::Policies;
+                        }
                         if ui.add(primary_button(self.t("confirm_apply"))).clicked() {
                             self.start_apply();
                         }
