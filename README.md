@@ -96,7 +96,7 @@ cargo build --release --locked --bin eulord
 .\\tools\\Test.ps1
 ```
 
-本機若使用 GNU 工具鏈，需要把 WinLibs 的 `mingw64\\bin` 放进 `PATH`；CI 與一般使用者建議用 MSVC。
+本機若使用 GNU 工具鏈，需要把 WinLibs 的 mingw64\bin 放进 PATH，並把工具鏈參數傳給腳本：.\tools\Build.ps1 -Profile release -Toolchain stable-x86_64-pc-windows-gnu。CI 與一般使用者建議用 MSVC。
 
 ## 資料位置
 
