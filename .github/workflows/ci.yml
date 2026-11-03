@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Formatting
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Tests
+        run: cargo test --workspace --locked
+      - name: Release build
+        run: cargo build --release --locked --bin eulord
+      - name: Stage portable artifact
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          Copy-Item target\release\eulord.exe dist\EULord.exe
+          $hash = Get-FileHash dist\EULord.exe -Algorithm SHA256
+          Set-Content dist\EULord.exe.sha256 "$($hash.Hash.ToLower())  EULord.exe" -Encoding ascii
+          Compress-Archive -Path dist\EULord.exe,dist\EULord.exe.sha256 -DestinationPath dist\EULord-portable.zip -Force
+      - uses: actions/upload-artifact@v4
+        with:
+          name: eulord-windows-x64
+          path: dist/*

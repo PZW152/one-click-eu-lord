@@ -1,124 +1,53 @@
 name: Release
 
-# Pushing a tag like v2.0.0 checks out that exact commit, builds EULord.exe with
-# the compiler inside Windows, runs the suite, and publishes the release.
-#
-# The asset name never changes, so this link always serves the newest version:
-#   https://github.com/PZW152/one-click-eu-lord/releases/latest/download/EULord.exe
 on:
   push:
-    tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Existing tag (v2.0.0 or later) to rebuild the release asset for'
-        required: true
-        type: string
+    tags: ['v*']
 
 permissions:
-  contents: read
-
-concurrency:
-  group: release-${{ github.event.inputs.tag || github.ref_name }}
-  cancel-in-progress: false
-
-env:
-  # Passed through the environment and never interpolated into a script body, so a
-  # tag name can never become part of a command.
-  RAW_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+  contents: write
 
 jobs:
   release:
     runs-on: windows-latest
-    timeout-minutes: 20
-    permissions:
-      contents: write   # create the release and upload its asset
+    env:
+      MSIX_PFX_BASE64: ${{ secrets.MSIX_PFX_BASE64 }}
     steps:
-      - name: Validate tag
-        shell: pwsh
-        run: |
-          if ($env:RAW_TAG -notmatch '^v\d+\.\d+\.\d+$') { throw "Refusing tag '$env:RAW_TAG': must look like v1.2.3" }
-          "TAG=$env:RAW_TAG" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-
-      # actions/checkout v4.3.0, pinned to a full commit SHA.
-      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+      - uses: actions/checkout@v4
         with:
-          ref: ${{ env.TAG }}
-          persist-credentials: false
-
-      - name: Version matches the tag and the changelog
-        shell: pwsh
-        run: .\tools\Check-Version.ps1 -Tag $env:TAG
-
-      # Every gate an ordinary push runs, a release runs too. This one was added to
-      # test.yml and not here, so v2.0.0 shipped without it: the release path was
-      # quietly weaker than the push path, which is the opposite of what a release
-      # should be.
-      - name: Theme matches the design tokens
-        shell: pwsh
-        run: .\tools\Check-Theme.ps1
-
-      - name: Source encoding and line endings
-        shell: pwsh
-        run: .\tools\Check-Encoding.ps1
-
-      - name: Build
-        shell: pwsh
-        run: .\tools\Build.ps1
-
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
       - name: Tests
+        run: cargo test --workspace --locked
+      - name: Release build
+        run: cargo build --release --locked --bin eulord
+      - name: Portable package
         shell: pwsh
-        run: .\tools\Test.ps1
-
-      - name: Catalog covers this runner's policy file
+        run: |
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          Copy-Item target\release\eulord.exe dist\EULord.exe
+          $hash = Get-FileHash dist\EULord.exe -Algorithm SHA256
+          Set-Content dist\EULord.exe.sha256 "$($hash.Hash.ToLower())  EULord.exe" -Encoding ascii
+          Compress-Archive -Path dist\EULord.exe,dist\EULord.exe.sha256 -DestinationPath dist\EULord-portable.zip -Force
+      - name: MSIX package and sign
+        if: env.MSIX_PFX_BASE64 != ''
         shell: pwsh
-        run: .\tools\Check-Catalog.ps1
-
-      - name: Release notes from CHANGELOG.md
-        shell: bash
-        run: |
-          set -euo pipefail
-          # The section under "## vX.Y.Z", up to the next "## " heading.
-          awk -v tag="$TAG" '
-            $0 ~ "^## " tag "([^0-9.]|$)" { on = 1; next }
-            on && /^## / { exit }
-            on { print }
-          ' CHANGELOG.md > notes.md
-          if ! grep -q '[^[:space:]]' notes.md; then
-            echo "CHANGELOG.md has no section for $TAG" >&2
-            exit 1
-          fi
-          cat notes.md
-
-      - name: Record the asset's hash in the notes
-        shell: bash
-        run: |
-          set -euo pipefail
-          sha=$(sha256sum dist/EULord.exe | cut -d' ' -f1)
-          size=$(stat -c%s dist/EULord.exe)
-          {
-            echo
-            echo '---'
-            echo
-            echo "\`EULord.exe\` — ${size} bytes"
-            echo
-            echo "SHA-256 \`${sha}\`"
-          } >> notes.md
-
-      - name: Publish release
-        shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
+          MSIX_PFX_BASE64: ${{ secrets.MSIX_PFX_BASE64 }}
+          MSIX_PFX_PASSWORD: ${{ secrets.MSIX_PFX_PASSWORD }}
         run: |
-          set -euo pipefail
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "Release $TAG exists; replacing its asset."
-            gh release upload "$TAG" dist/EULord.exe --clobber
-          else
-            gh release create "$TAG" dist/EULord.exe \
-              --verify-tag \
-              --title "$TAG — 一鍵轉生歐爺 · 一键转生欧爷 · One-Click EU Lord" \
-              --notes-file notes.md
-          fi
+          [IO.File]::WriteAllBytes("$pwd\signing.pfx", [Convert]::FromBase64String($env:MSIX_PFX_BASE64))
+          ./tools/Pack-Msix.ps1 -PfxPath "$pwd\signing.pfx" -PfxPassword $env:MSIX_PFX_PASSWORD
+          Remove-Item "$pwd\signing.pfx" -Force
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          fail_on_unmatched_files: false
+          files: |
+            dist/EULord.exe
+            dist/EULord.exe.sha256
+            dist/EULord-portable.zip
+            dist/OneClickEULord.msix
+            dist/OneClickEULord.appinstaller

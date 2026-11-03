@@ -1,96 +1,45 @@
 # Security
 
-## Reporting a problem
+## Reporting
 
-Open a [security advisory](https://github.com/PZW152/one-click-eu-lord/security/advisories/new)
-on this repository, or a normal issue if the problem is not sensitive. There is no
-guaranteed response time: this is a personal open-source project.
+Open a [security advisory](https://github.com/PZW152/one-click-eu-lord/security/advisories/new) for sensitive reports, otherwise a normal issue. This is a personal open-source project; no guaranteed response time.
 
-## What this tool is allowed to do, and what it refuses to
+## What v3 changes
 
-It needs administrator rights, so it is worth being precise about the boundaries.
+Elevated apply touches only:
 
-### It changes exactly four things
-
-| What | Where |
+| Item | Location |
 |---|---|
-| The region policy set | `C:\Windows\System32\IntegratedServicesRegionPolicySet.json` |
-| The cached device region | `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Control Panel\DeviceRegion` |
-| One scheduled task | `OneClickEULord-Persist` |
-| Its own data folder | `C:\ProgramData\OneClickEULord\` |
+| Region policy set | `C:\\Windows\\System32\\IntegratedServicesRegionPolicySet.json` |
+| Device region | `HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Control Panel\\DeviceRegion` |
+| Scheduled task | `OneClickEULord-Persist` |
+| Tool data | `C:\\ProgramData\\OneClickEULord\\` |
 
-Everything it creates is in that one folder, so uninstalling never has to guess at
-filenames or scan for leftovers.
+The policy file is backed up before replacement. Replacements are atomic (`ReplaceFileW`, fallback `MoveFileExW`). A journal, restore point attempt, verification pass and automatic rollback on critical failure are part of the apply transaction.
 
-### It does not weaken the system
+## Privilege model
 
-- **No ownership or permission changes.** v1 ran `takeown` and `icacls` on the policy
-  file, which permanently changed a Windows system file's owner and DACL and could not
-  be undone (`icacls /setowner "NT SERVICE\TrustedInstaller"` fails with 1307). v2
-  writes the file in place — the shipped DACL already grants Administrators full
-  control — and if a write is ever denied it enables `SeRestorePrivilege` for a single
-  handle instead, modifying nothing.
-- **UCPD stays loaded and enabled.** The UserChoice Protection Driver is never
-  disabled, unloaded or patched. If it blocks the one `DeviceRegion` write, the
-  fallback copies `reg.exe` to a temporary name, writes that one value, and deletes the
-  copy. Nothing else is affected.
-- **No service, no driver, no resident process.** The scheduled task runs, re-applies
-  and exits.
-- **No Defender exclusions, no policy bypasses, no tampering with security settings.**
+- The GUI starts as `asInvoker`; it does not request admin at launch.
+- Apply/restore/purge launch the same executable as an elevated worker via `ShellExecuteExW(runas)`.
+- The worker receives a temporary JSON state handoff and removes it after use.
+- The scheduled task runs as local `SYSTEM` with `HighestAvailable`, has three triggers (logon, daily, Windows Update event), and exits after re-applying.
 
-### It does not delete software by hand
+## Hardening
 
-Apps are removed only through `Remove-AppxPackage` or the uninstall command the app
-registered itself, run as written. No file deletion, no WinSxS, no force-removal of
-something without an uninstaller, and no fallback to deleting files when an
-uninstaller fails. An app with no legitimate route is shown as not removable.
+- When elevated, the data directory DACL is set to protected: SYSTEM and Administrators full control, Users read/execute.
+- Standard users may keep UI preferences in `%LOCALAPPDATA%\\OneClickEULord\\state.json`; system state remains in the protected ProgramData directory.
+- The policy writer never grants ownership or modifies the DACL of Windows system files.
+- No service, driver, resident process, Defender exclusion, firewall change, or background telemetry.
 
-Uninstalling is not available from the command line, so an unattended run can never
-remove software. Each app is confirmed separately in the window.
+## Explicit non-goals
 
-### It does not work around management policy
+- **No software uninstall.** There is no Appx/registry uninstall execution path. The EU Unlocks page only explains which policy entries unlock uninstallability; removal itself is done by Windows Settings → Apps.
+- No UCPD bypass, no renamed `reg.exe`, no patching of security components.
+- No Microsoft account, activation, license, or Store entitlement changes.
 
-If a domain or MDM policy overrides what the tool writes, verification reports that
-and the tool stops. There is deliberately no bypass.
+## Release integrity
 
-## Privacy
+- Portable releases publish `EULord.exe` and a SHA-256 file.
+- MSIX releases must be signed with a trusted certificate whose subject matches the AppxManifest Publisher. The repository does not contain a signing certificate.
+- Unknown/unclassified policy entries are left exactly as Windows shipped them; review the plan before applying on a new Windows build.
 
-- No telemetry, no analytics, no crash reporting, no identifiers.
-- The only network request is **Check for updates**, which reads the latest release
-  tag from the GitHub API and sends nothing but a `User-Agent`. It happens when you
-  press the button and never on launch.
-- The log is local, English, and records what was changed — never credentials, tokens
-  or personal data.
-
-## Supply chain
-
-- One file, no dependencies. Built with the C# compiler inside Windows; no NuGet
-  packages, no vendored code.
-- Every GitHub Action is pinned to a full commit SHA, verified against the GitHub API
-  rather than copied from memory.
-- Workflows default to `permissions: contents: read`; only the publishing job gets
-  `contents: write`.
-- Tag names reach workflows through the environment and are regex-validated before use,
-  never interpolated into a script body.
-- Each release's notes carry the asset's SHA-256 so a download can be checked:
-
-  ```powershell
-  Get-FileHash .\EULord.exe -Algorithm SHA256
-  ```
-
-## Risks you should weigh before using it
-
-Honest list, because the tool asks for administrator rights:
-
-1. **It edits a Windows system file.** That file is backed up first, twice, and
-   restore puts it back — but Microsoft does not support editing it, and a future
-   Windows version could change its format. The tool refuses to write rather than
-   guess if it cannot parse what it finds.
-2. **It tells Windows your device region is Ireland.** Region-dependent behaviour
-   elsewhere in Windows and in Microsoft apps may change accordingly. Restore puts the
-   old value back, or removes the value entirely if there was not one before.
-3. **The unsigned executable will warn you.** There is no code-signing certificate, so
-   SmartScreen will flag it. Build it yourself from source if that matters — it is one
-   command and needs nothing installed.
-4. **Uninstalling Microsoft Store is hard to undo.** It has no one-click reinstall;
-   the tool says so next to the checkbox rather than after the fact.

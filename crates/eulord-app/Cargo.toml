@@ -1,0 +1,28 @@
+[package]
+name = "eulord-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "eulord"
+path = "src/main.rs"
+
+[dependencies]
+eulord-core = { path = "../eulord-core" }
+eulord-windows = { path = "../eulord-windows" }
+serde.workspace = true
+serde_json.workspace = true
+clap.workspace = true
+egui.workspace = true
+eframe.workspace = true
+rfd.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+chrono.workspace = true
+
+[build-dependencies]
+winresource = "0.1"

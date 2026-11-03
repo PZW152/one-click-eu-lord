@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AppInstaller xmlns="http://schemas.microsoft.com/appx/appinstaller/2018" Version="3.0.0.0" Uri="https://github.com/PZW152/one-click-eu-lord/releases/latest/download/OneClickEULord.appinstaller">
+  <MainPackage Name="PZW152.OneClickEULord" Version="3.0.0.0" Publisher="CN=PZW152" ProcessorArchitecture="x64" Uri="https://github.com/PZW152/one-click-eu-lord/releases/latest/download/OneClickEULord.msix" />
+  <UpdateSettings>
+    <OnLaunch HoursBetweenUpdateChecks="8" ShowPrompt="true" UpdateBlocksActivation="false" AutomaticBackgroundTask="true" />
+  </UpdateSettings>
+</AppInstaller>

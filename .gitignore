@@ -18,3 +18,6 @@ IntegratedServicesRegionPolicySet*.json
 # Build output (tools\Build.ps1, tools\Test.ps1, and the UI snapshots).
 # Screenshots that the README uses are copied into docs\images\ instead.
 dist/
+
+target/
+cli-*
