@@ -86,7 +86,7 @@ Commands: `status`, `plan`, `apply`, `repair`, `reapply`, `restore`, `purge`, `v
 ## 7. Compatibility and verification
 
 - Minimum build: 22621 (Windows 11 22H2).
-- Tested builds: 22631, 26100, 26300.
+- Compatibility matrix: 22631, 26100, 26300. Only 26300 was exercised in this environment; destructive apply/restore was not run on the host.
 - Unknown builds are marked unknown; they are not silently treated as supported.
 - Tests: `eulord-core` unit tests, CLI parse/contract coverage, planner/unknown-policy tests, state migrations.
 - Host verification is non-destructive: no apply/restore/purge is run in CI or tests.

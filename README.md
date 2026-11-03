@@ -111,6 +111,7 @@ cargo build --release --locked --bin eulord
 ## 限制與已知問題
 
 - 目前只驗證 x64；arm64 需要以 arm64 target 建置並重新打包 MSIX。
+- 本機 smoke test 只在 Windows 11 build 26300 執行；未對主機執行 apply／restore／purge（避免破壞性變更）。
 - 未分類策略會保持原樣，所以不是「所有未来 Windows build 都自動支援」；遇到新 build 請先看相容性警告。
 - MSIX 程式碼簽章憑證是外部依賴；本 repo 不附憑證，因此預設只發佈可攜版。
 - 本工具不做軟件解除安裝、不繞過 UCPD、不改 Microsoft 帳戶或授權狀態。
