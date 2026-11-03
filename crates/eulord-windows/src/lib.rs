@@ -928,6 +928,9 @@ fn apply_dacl_tree(path: &Path, descriptor: PSECURITY_DESCRIPTOR) -> Result<()> 
             path.display()
         )));
     }
+    if !path.is_dir() {
+        return Ok(());
+    }
     let entries = std::fs::read_dir(path)?;
     for entry in entries {
         let entry = entry?;
