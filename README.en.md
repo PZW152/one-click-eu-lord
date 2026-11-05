@@ -2,7 +2,7 @@
 
 [繁體中文](README.md) · [简体中文](README.zh-CN.md) · **English**
 
-> Pure Rust rewrite. The UI is a real GUI styled like a retro-futurist TUI, fully mouse-operable.
+> Pure Rust rewrite. The GUI follows Windows 11 Fluent design and the system light/dark theme.
 
 > **This tool never installs or uninstalls software.** It only changes Windows EU/EEA policy data, the device region, and a persistence scheduled task. Use Windows Settings → Apps for software removal.
 
