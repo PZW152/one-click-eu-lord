@@ -19,7 +19,7 @@ Use MSVC + Windows SDK in CI. The local GNU toolchain needs WinLibs `mingw64\\bi
 
 Update all of:
 
-- `Cargo.toml` workspace version
+- `Cargo.toml` workspace version and `crates/eulord-app/build.rs` FileVersion/ProductVersion
 - `packaging/AppxManifest.xml` Identity Version and `packaging/OneClickEULord.appinstaller` Version/MainPackage Version
 - `CHANGELOG.md`
 
@@ -49,8 +49,8 @@ The release workflow only builds MSIX when `MSIX_PFX_BASE64` is non-empty. It ne
 ## Tagging
 
 ```powershell
-git tag v3.0.0
-git push origin v3.0.0
+git tag v3.1.0
+git push origin v3.1.0
 ```
 
 The workflow runs tests, builds the portable artifact, optionally builds/signs MSIX, and creates the GitHub release.

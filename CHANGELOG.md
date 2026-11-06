@@ -1,5 +1,37 @@
 # 更新記錄 · Changelog
 
+## v3.1.0 — 2026-11-06
+
+**繁體中文**
+
+- GUI 改為 Windows 11 Fluent 風格：自訂標題列、NavigationView 側欄（Segoe Fluent Icons）、設定頁式卡片，並自動跟隨系統淺色／深色主題。
+- 字型改用 Segoe UI 搭配微軟正黑體／雅黑，並有真正的粗體；修正英文等寬字與中文混排錯位。
+- 總覽改為單一狀態卡與主要按鈕；移除裝飾文字與 CRT 掃描線。
+- 政策矩陣：簡易模式用開關，專家模式用「自動／EU／全球」切換並依類別分組；篩選只在專家模式出現（修正簡易模式下篩選會得到空白清單）。政策狀態值已在地化。
+- 修正「套用前確認」對話框在較矮視窗會超出畫面頂端。
+- 全新 logo（一鍵開關＋金色星星），用於 exe、標題列與 MSIX 磚塊；原始 SVG 位於 `docs/brand/`。
+- 英文介面改為一般大小寫。套用／還原／提權邏輯沒有變更。
+
+**简体中文**
+
+- GUI 改为 Windows 11 Fluent 风格：自定义标题栏、NavigationView 侧栏（Segoe Fluent Icons）、设置页式卡片，并自动跟随系统浅色/深色主题。
+- 字体改用 Segoe UI 搭配微软雅黑/正黑体，并有真正的粗体；修正英文等宽字与中文混排错位。
+- 总览改为单一状态卡与主要按钮；移除装饰文字与 CRT 扫描线。
+- 策略矩阵：简易模式用开关，专家模式用“自动/EU/全球”切换并按类别分组；筛选只在专家模式出现（修正简易模式下筛选得到空白列表）。策略状态值已本地化。
+- 修正“应用前确认”对话框在较矮窗口中超出屏幕顶端。
+- 全新 logo（一键开关＋金色星星），用于 exe、标题栏与 MSIX 磁贴；源 SVG 位于 `docs/brand/`。
+- 英文界面改为常规大小写。应用/还原/提权逻辑没有变更。
+
+**English**
+
+- GUI redesigned in Windows 11 Fluent style: custom title bar, NavigationView pane with Segoe Fluent Icons, Settings-style cards, and automatic light/dark theme.
+- Segoe UI with Microsoft JhengHei/YaHei and a real semibold weight; fixes mixed mono/CJK misalignment.
+- Overview is now one status card with the primary action; decorative labels and the CRT effect are gone.
+- Policy matrix: toggles in simple mode; Auto/EU/Global segmented control with class grouping in expert mode. Filters appear only in expert mode (fixes an empty list in simple mode). Policy state values are localized.
+- Fixed the apply review dialog overflowing short windows.
+- New logo (toggle switch + gold stars) for the exe, title bar and MSIX tiles; source SVGs in `docs/brand/`.
+- English UI uses sentence case. Apply/restore/elevation logic is unchanged.
+
 ## v3.0.0 — 2026-11-04
 
 **繁體中文**

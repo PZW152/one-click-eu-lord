@@ -3,7 +3,7 @@ members = ["crates/eulord-core", "crates/eulord-windows", "crates/eulord-app"]
 resolver = "2"
 
 [workspace.package]
-version = "3.0.0"
+version = "3.1.0"
 edition = "2024"
 license = "MIT"
 authors = ["PZW152"]
