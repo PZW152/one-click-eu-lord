@@ -1898,6 +1898,9 @@ impl App {
 
         if self.show_review {
             let plan = self.snapshot.plan.clone();
+            // Fit the whole dialog (buttons included) in short windows.
+            let top_rows = (((ctx.content_rect().height() - 560.0) / 30.0).floor() as i64)
+                .clamp(3, 7) as usize;
             let mut confirm = false;
             let mut to_policies = false;
             let mut cancel = false;
@@ -1955,7 +1958,9 @@ impl App {
                         .inner_margin(Margin::symmetric(12, 8))
                         .show(ui, |ui| {
                             ui.set_width(ui.available_width());
-                            for decision in plan.changed_decisions().take(7) {
+                            ui.spacing_mut().interact_size.y = 22.0;
+                            ui.spacing_mut().item_spacing.y = 6.0;
+                            for decision in plan.changed_decisions().take(top_rows) {
                                 ui.horizontal(|ui| {
                                     dot(ui, class_color(&p, decision.class));
                                     ui.label(rt(
@@ -1976,7 +1981,7 @@ impl App {
                                     });
                                 });
                             }
-                            if plan.changed_policies > 7 {
+                            if plan.changed_policies > top_rows {
                                 ui.label(rt(
                                     self.l(
                                         "完整清單請看「政策矩陣」",
@@ -2893,7 +2898,8 @@ fn dialog(ctx: &egui::Context, p: &Pal, id: &str, add: impl FnOnce(&mut egui::Ui
                 .inner_margin(Margin::same(24)),
         )
         .show(ctx, |ui| {
-            let width = (ctx.content_rect().width() - 96.0).clamp(380.0, 560.0);
+            let screen = ctx.content_rect();
+            let width = (screen.width() - 96.0).clamp(380.0, 560.0);
             ui.set_width(width);
             ui.set_max_width(width);
             add(ui);
